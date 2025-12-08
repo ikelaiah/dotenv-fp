@@ -10,7 +10,7 @@
 }
 program advanced_example;
 
-{$mode objfpc}{$H+}
+{$mode objfpc}{$H+}{$J-}
 
 uses
   SysUtils, DotEnv;
@@ -42,7 +42,7 @@ begin
   // Example 2: Multiple file loading (like .env.local, .env.development)
   WriteLn('--- Multiple Files ---');
   Env := TDotEnv.Create;
-  Env.LoadMultiple(['.env', '.env.local', '.env.development']);
+  Env.LoadMultiple(['.env', '.env.local']);
   
   WriteLn('Loaded files:');
   for I := 0 to High(Env.LoadedFiles) do
