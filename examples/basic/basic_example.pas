@@ -15,7 +15,7 @@
 }
 program basic_example;
 
-{$mode objfpc}{$H+}
+{$mode objfpc}{$H+}{$J-}
 
 uses
   SysUtils, DotEnv;

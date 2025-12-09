@@ -8,7 +8,7 @@
 }
 program test_dotenv;
 
-{$mode objfpc}{$H+}
+{$mode objfpc}{$H+}{$J-}
 
 uses
   SysUtils;

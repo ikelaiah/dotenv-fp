@@ -68,7 +68,7 @@ SECRET_KEY="super-secret-key-here"
 ```pascal
 program MyApp;
 
-{$mode objfpc}{$H+}
+{$mode objfpc}{$H+}{$J-}
 
 uses
   DotEnv;
@@ -389,11 +389,12 @@ dotenv-fp/
 │   ├── TestRunner.pas      # FPCUnit test runner
 │   └── DotEnv.Test.pas     # Test cases
 ├── examples/
-│   ├── basic_example.pas
-│   └── advanced_example.pas
+│   ├── basic/              # Basic usage example
+│   └── advanced/           # Advanced features example
+├── docs/                   # Documentation
 ├── .env.example            # Example .env file
-├── README.md
-└── LICENSE
+├── CHANGELOG.md
+└── README.md
 ```
 
 ---
@@ -402,7 +403,7 @@ dotenv-fp/
 
 1. **Advanced Records**: This library uses advanced records (`{$modeswitch advancedrecords}`), which means you don't need to call `.Free` — memory is managed automatically!
 
-2. **Mode ObjFPC**: Make sure your program uses `{$mode objfpc}{$H+}` for compatibility.
+2. **Mode ObjFPC**: Make sure your program uses `{$mode objfpc}{$H+}{$J-}` for compatibility.
 
 3. **String Handling**: The `{$H+}` switch enables long strings (AnsiString) by default, which this library requires.
 
