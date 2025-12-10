@@ -33,12 +33,13 @@ Array of key-value pairs.
 TDotEnvPairArray = array of TDotEnvPair;
 ```
 
-### TStringArray
+### TStringDynArray
 
-Array of strings (used for `GetArray`, `Keys`, `Values`, etc.).
+Array of strings (used for `GetArray`, `Keys`, `Values`, etc.). This type is provided by the standard `Types` unit.
 
 ```pascal
-TStringArray = array of string;
+// From the Types unit:
+TStringDynArray = array of AnsiString;
 ```
 
 ---
@@ -280,7 +281,7 @@ function GetFloatRequired(const AKey: string): Double;
 Splits a value by separator into an array.
 
 ```pascal
-function GetArray(const AKey: string; const ASeparator: string = ','): TStringArray;
+function GetArray(const AKey: string; const ASeparator: string = ','): TStringDynArray;
 ```
 
 **Example:**
@@ -309,7 +310,7 @@ function Has(const AKey: string): Boolean;
 Returns all loaded keys.
 
 ```pascal
-function Keys: TStringArray;
+function Keys: TStringDynArray;
 ```
 
 #### `Values`
@@ -317,7 +318,7 @@ function Keys: TStringArray;
 Returns all loaded values.
 
 ```pascal
-function Values: TStringArray;
+function Values: TStringDynArray;
 ```
 
 #### `AsArray`
@@ -349,7 +350,7 @@ function ToString: string;
 Returns list of files that were loaded.
 
 ```pascal
-function LoadedFiles: TStringArray;
+function LoadedFiles: TStringDynArray;
 ```
 
 ---
@@ -375,7 +376,7 @@ if not Env.Validate(['DATABASE_URL', 'SECRET_KEY']) then
 Returns list of missing keys from required set.
 
 ```pascal
-function GetMissing(const ARequiredKeys: array of string): TStringArray;
+function GetMissing(const ARequiredKeys: array of string): TStringDynArray;
 ```
 
 **Example:**

@@ -148,7 +148,7 @@ PORTS=3000,3001,3002
 
 ```pascal
 var
-  Hosts: TStringArray;
+  Hosts: TStringDynArray;  // From Types unit
   I: Integer;
 begin
   Hosts := Env.GetArray('ALLOWED_HOSTS');

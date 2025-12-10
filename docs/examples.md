@@ -83,14 +83,14 @@ program WebServer;
 {$mode objfpc}{$H+}{$J-}
 
 uses
-  DotEnv;
+  Types, DotEnv;
 
 var
   Env: TDotEnv;
   Host: string;
   Port, MaxConn: Integer;
   SSLEnabled: Boolean;
-  Origins: TStringArray;
+  Origins: TStringDynArray;
   I: Integer;
 begin
   Env := TDotEnv.Create;
@@ -253,11 +253,11 @@ program ValidatedApp;
 {$mode objfpc}{$H+}{$J-}
 
 uses
-  DotEnv;
+  Types, DotEnv;
 
 var
   Env: TDotEnv;
-  Missing: TStringArray;
+  Missing: TStringDynArray;
   I: Integer;
   RequiredKeys: array[0..3] of string = (
     'DATABASE_URL',

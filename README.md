@@ -192,7 +192,7 @@ Tags := Env.GetArray('TAGS', ';');             // Split by semicolon
 
 ```pascal
 var
-  Missing: TStringArray;
+  Missing: TStringDynArray;
   I: Integer;
 begin
   // ✅ Check if all required keys exist
@@ -218,8 +218,8 @@ if Env.Has('OPTIONAL_FEATURE') then
   EnableFeature;
 
 // 📋 Get all keys and values
-Keys := Env.Keys;           // TStringArray of all key names
-Values := Env.Values;       // TStringArray of all values  
+Keys := Env.Keys;           // TStringDynArray of all key names
+Values := Env.Values;       // TStringDynArray of all values  
 Pairs := Env.AsArray;       // TDotEnvPairArray with Key/Value records
 
 // 🔢 Count loaded variables
@@ -367,12 +367,12 @@ fpc TestRunner.pas
 
 Expected output:
 ```
-Time:00.016 N:40 E:0 F:0 I:0
-  TTestDotEnv Time:00.016 N:40 E:0 F:0 I:0
+Time:00.075 N:96 E:0 F:0 I:0
+  TTestDotEnv Time:00.075 N:96 E:0 F:0 I:0
     00.000  Test01_BasicParsing_SimpleKeyValue
     00.000  Test02_BasicParsing_TrimmedValue
     ...
-Number of run tests: 40
+Number of run tests: 96
 Number of errors:    0
 Number of failures:  0
 ```
