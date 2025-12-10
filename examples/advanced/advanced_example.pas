@@ -13,12 +13,12 @@ program advanced_example;
 {$mode objfpc}{$H+}{$J-}
 
 uses
-  SysUtils, DotEnv;
+  SysUtils, Types, DotEnv;
 
 var
   Env: TDotEnv;
   Options: TDotEnvOptions;
-  Keys: TStringArray;
+  Keys: TStringDynArray;
   I: Integer;
   
 begin

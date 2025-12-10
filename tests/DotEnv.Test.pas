@@ -5,7 +5,7 @@ unit DotEnv.Test;
 interface
 
 uses
-  Classes, SysUtils, fpcunit, testregistry, DotEnv;
+  Classes, SysUtils, Types, fpcunit, testregistry, DotEnv;
 
 type
   TTestDotEnv = class(TTestCase)
@@ -346,7 +346,7 @@ end;
 
 procedure TTestDotEnv.Test32_Validation_GetMissing;
 var
-  Missing: TStringArray;
+  Missing: TStringDynArray;
 begin
   FEnv.LoadFromString(
     'KEY1=value1' + LineEnding +
@@ -664,7 +664,7 @@ end;
 
 procedure TTestDotEnv.Test73_TypeConversion_ArrayEmpty;
 var
-  Arr: TStringArray;
+  Arr: TStringDynArray;
 begin
   FEnv.LoadFromString('EMPTY=');
   Arr := FEnv.GetArray('EMPTY');
@@ -673,7 +673,7 @@ end;
 
 procedure TTestDotEnv.Test74_TypeConversion_ArraySingleItem;
 var
-  Arr: TStringArray;
+  Arr: TStringDynArray;
 begin
   FEnv.LoadFromString('SINGLE=onlyone');
   Arr := FEnv.GetArray('SINGLE');
@@ -683,7 +683,7 @@ end;
 
 procedure TTestDotEnv.Test75_TypeConversion_ArrayCustomSeparator;
 var
-  Arr: TStringArray;
+  Arr: TStringDynArray;
 begin
   FEnv.LoadFromString('LIST=a;b;c');
   Arr := FEnv.GetArray('LIST', ';');
@@ -693,7 +693,7 @@ end;
 
 procedure TTestDotEnv.Test76_TypeConversion_ArrayWithSpaces;
 var
-  Arr: TStringArray;
+  Arr: TStringDynArray;
 begin
   FEnv.LoadFromString('LIST=a, b , c');
   Arr := FEnv.GetArray('LIST');
@@ -825,7 +825,7 @@ end;
 
 procedure TTestDotEnv.Test87_Keys_ReturnsAllKeys;
 var
-  K: TStringArray;
+  K: TStringDynArray;
 begin
   FEnv.LoadFromString(
     'ALPHA=1' + LineEnding +
@@ -838,7 +838,7 @@ end;
 
 procedure TTestDotEnv.Test88_Values_ReturnsAllValues;
 var
-  V: TStringArray;
+  V: TStringDynArray;
 begin
   FEnv.LoadFromString(
     'A=one' + LineEnding +

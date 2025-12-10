@@ -18,13 +18,13 @@ program basic_example;
 {$mode objfpc}{$H+}{$J-}
 
 uses
-  SysUtils, DotEnv;
+  SysUtils, Types, DotEnv;
 
 var
   Env: TDotEnv;
-  Hosts: TStringArray;
+  Hosts: TStringDynArray;
   I: Integer;
-  Missing: TStringArray;
+  Missing: TStringDynArray;
   
 begin
   WriteLn('=== DotEnv Basic Example ===');
