@@ -78,10 +78,10 @@ unit DotEnv;
 interface
 
 uses
-  Classes,   (* TStringList, TStream - for file and string handling *)
-  SysUtils,  (* File operations, string conversions, exceptions *)
-  StrUtils,  (* AnsiStartsStr - for string prefix checking *)
-  Types;     (* TStringDynArray - dynamic array of strings *)
+  Classes,   // TStringList, TStream - for file and string handling
+  SysUtils,  // File operations, string conversions, exceptions
+  StrUtils,  // AnsiStartsStr - for string prefix checking
+  Types;     // TStringDynArray - dynamic array of strings
 
 type
   (*
@@ -96,11 +96,11 @@ type
       Pair.Value := 'postgresql://localhost/mydb';
   *)
   TDotEnvPair = record
-    Key: string;    (* The variable name, e.g., 'DATABASE_URL' *)
-    Value: string;  (* The variable value, e.g., 'postgresql://localhost/mydb' *)
+    Key: string;    // The variable name, e.g., 'DATABASE_URL'
+    Value: string;  // The variable value, e.g., 'postgresql://localhost/mydb'
   end;
   
-  (* Dynamic array of TDotEnvPair - used for bulk operations *)
+  // Dynamic array of TDotEnvPair - used for bulk operations
   TDotEnvPairArray = array of TDotEnvPair;
 
   (*
@@ -165,8 +165,8 @@ type
   *)
   TDotEnvValues = record
   private
-    FItems: TDotEnvPairArray;  (* Storage array for key-value pairs *)
-    FCount: Integer;           (* Number of items currently stored *)
+    FItems: TDotEnvPairArray;  // Storage array for key-value pairs
+    FCount: Integer;           // Number of items currently stored
     
     (* Doubles the capacity of FItems array when more space is needed.
        Initial capacity is 16, then grows to 32, 64, 128, etc. *)
@@ -184,13 +184,13 @@ type
        Uses linear search - O(n) complexity. *)
     function Find(const AKey: string): Integer;
     
-    (* Gets a value by key, returning ADefault if not found. *)
+    // Gets a value by key, returning ADefault if not found.
     function Get(const AKey: string; const ADefault: string = ''): string;
     
-    (* Removes all stored key-value pairs. *)
+    // Removes all stored key-value pairs.
     procedure Clear;
     
-    (* Returns the number of stored key-value pairs. *)
+    // Returns the number of stored key-value pairs.
     function Count: Integer;
     
     (* Returns the key-value pair at the specified index.
@@ -219,10 +219,10 @@ type
   *)
   TDotEnv = record
   private
-    FValues: TDotEnvValues;      (* Internal storage for loaded key-value pairs *)
-    FOptions: TDotEnvOptions;    (* Configuration options for loading/parsing *)
-    FLoaded: Boolean;            (* True if at least one file was loaded successfully *)
-    FLoadedFiles: TStringDynArray;  (* List of files that were successfully loaded *)
+    FValues: TDotEnvValues;      // Internal storage for loaded key-value pairs
+    FOptions: TDotEnvOptions;    // Configuration options for loading/parsing
+    FLoaded: Boolean;            // True if at least one file was loaded successfully
+    FLoadedFiles: TStringDynArray;  // List of files that were successfully loaded
     
     (* -----------------------------------------------------------------------
        PRIVATE PARSING METHODS
@@ -452,7 +452,7 @@ type
        Can be modified after Create but before Load. *)
     property Options: TDotEnvOptions read FOptions write FOptions;
     
-    (* True if at least one file was successfully loaded. *)
+    // True if at least one file was successfully loaded.
     property Loaded: Boolean read FLoaded;
   end;
 
@@ -471,16 +471,16 @@ type
       end;
   *)
   
-  (* Base exception class - catch this to handle any dotenv error *)
+  // Base exception class - catch this to handle any dotenv error
   EDotEnvException = class(Exception);
   
-  (* Raised when GetRequired/GetIntRequired/etc. can't find a key *)
+  // Raised when GetRequired/GetIntRequired/etc. can't find a key
   EDotEnvMissingKey = class(EDotEnvException);
   
-  (* Raised when a value can't be converted to the requested type *)
+  // Raised when a value can't be converted to the requested type
   EDotEnvParseError = class(EDotEnvException);
   
-  (* Reserved for future use - file not found errors *)
+  // Reserved for future use - file not found errors
   EDotEnvFileNotFound = class(EDotEnvException);
 
 (*
@@ -503,10 +503,10 @@ type
    Returns the global TDotEnv for optional further operations. *)
 function DotEnvLoad(const APath: string = '.env'): TDotEnv;
 
-(* Gets a value from the global instance. Auto-loads .env if not yet loaded. *)
+// Gets a value from the global instance. Auto-loads .env if not yet loaded.
 function DotEnvGet(const AKey: string; const ADefault: string = ''): string;
 
-(* Sets a value in the global instance. Creates instance if needed. *)
+// Sets a value in the global instance. Creates instance if needed.
 procedure DotEnvSet(const AKey, AValue: string);
 
 implementation
@@ -555,7 +555,7 @@ end;
 
 procedure TDotEnvValues.Init;
 begin
-  (* Start with empty array - will grow on first Add *)
+  // Start with empty array - will grow on first Add
   SetLength(FItems, 0);
   FCount := 0;
 end;
@@ -618,7 +618,7 @@ function TDotEnvValues.Get(const AKey: string; const ADefault: string): string;
 var
   Idx: Integer;
 begin
-  (* Simple wrapper around Find that returns the value or a default *)
+  // Simple wrapper around Find that returns the value or a default
   Idx := Find(AKey);
   if Idx >= 0 then
     Result := FItems[Idx].Value
@@ -628,7 +628,7 @@ end;
 
 procedure TDotEnvValues.Clear;
 begin
-  (* Reset to empty state - releases memory held by dynamic array *)
+  // Reset to empty state - releases memory held by dynamic array
   SetLength(FItems, 0);
   FCount := 0;
 end;
@@ -671,7 +671,7 @@ end;
 
 class function TDotEnv.CreateWithOptions(const AOptions: TDotEnvOptions): TDotEnv;
 begin
-  (* Create with defaults, then apply custom options *)
+  // Create with defaults, then apply custom options
   Result := TDotEnv.Create;
   Result.FOptions := AOptions;
 end;
@@ -690,26 +690,26 @@ function TDotEnv.DetectQuote(const AValue: string; out AQuoteChar: Char): string
 var
   Trimmed: string;
 begin
-  (* Remove leading whitespace to find the actual start of the value *)
+  // Remove leading whitespace to find the actual start of the value
   Trimmed := TrimLeft(AValue);
-  AQuoteChar := #0;  (* Default: unquoted *)
+  AQuoteChar := #0;  // Default: unquoted
   
-  (* Handle empty values *)
+  // Handle empty values
   if Length(Trimmed) = 0 then
   begin
     Result := '';
     Exit;
   end;
   
-  (* Check for quote characters at the start *)
+  // Check for quote characters at the start
   if (Trimmed[1] = '"') or (Trimmed[1] = '''') then
   begin
-    AQuoteChar := Trimmed[1];  (* Remember which quote type *)
-    (* Return everything after the opening quote *)
+    AQuoteChar := Trimmed[1];  // Remember which quote type
+    // Return everything after the opening quote
     Result := Copy(Trimmed, 2, Length(Trimmed) - 1);
   end
   else
-    Result := Trimmed;  (* Unquoted - return as-is *)
+    Result := Trimmed;  // Unquoted - return as-is
 end;
 
 (*
@@ -735,15 +735,15 @@ end;
 function TDotEnv.ParseValue(const ARawValue: string; AQuoteChar: Char): string;
 var
   I: Integer;
-  InEscape: Boolean;  (* True when previous char was backslash *)
+  InEscape: Boolean;  // True when previous char was backslash
   Ch: Char;
 begin
   Result := '';
   
-  (* CASE 1: Unquoted value - just strip comments and trim *)
+  // CASE 1: Unquoted value - just strip comments and trim
   if AQuoteChar = #0 then
   begin
-    I := Pos('#', ARawValue);  (* Find inline comment *)
+    I := Pos('#', ARawValue);  // Find inline comment
     if I > 0 then
       Result := TrimRight(Copy(ARawValue, 1, I - 1))
     else
@@ -751,7 +751,7 @@ begin
     Exit;
   end;
   
-  (* CASE 2 & 3: Quoted values - process character by character *)
+  // CASE 2 & 3: Quoted values - process character by character
   InEscape := False;
   for I := 1 to Length(ARawValue) do
   begin
@@ -759,28 +759,28 @@ begin
     
     if InEscape then
     begin
-      (* Previous char was backslash - process escape sequence *)
+      // Previous char was backslash - process escape sequence
       case Ch of
-        'n': Result := Result + #10;   (* Newline *)
-        'r': Result := Result + #13;   (* Carriage return *)
-        't': Result := Result + #9;    (* Tab *)
-        '\': Result := Result + '\';   (* Literal backslash *)
-        '"': Result := Result + '"';   (* Literal double quote *)
-        '''': Result := Result + ''''; (* Literal single quote *)
+        'n': Result := Result + #10;   // Newline
+        'r': Result := Result + #13;   // Carriage return
+        't': Result := Result + #9;    // Tab
+        '\': Result := Result + '\';   // Literal backslash
+        '"': Result := Result + '"';   // Literal double quote
+        '''': Result := Result + ''''; // Literal single quote
       else
-        (* Unknown escape - keep both backslash and char *)
+        // Unknown escape - keep both backslash and char
         Result := Result + '\' + Ch;
       end;
       InEscape := False;
     end
     else if (Ch = '\') and (AQuoteChar = '"') then
-      (* Start escape sequence (only for double quotes) *)
+      // Start escape sequence (only for double quotes)
       InEscape := True
     else if Ch = AQuoteChar then
-      (* Found closing quote - stop processing *)
+      // Found closing quote - stop processing
       Break
     else
-      (* Regular character - add to result *)
+      // Regular character - add to result
       Result := Result + Ch;
   end;
 end;
@@ -813,25 +813,25 @@ var
 begin
   Result := AStartValue;
   
-  (* Keep reading lines until we find closing quote or EOF *)
+  // Keep reading lines until we find closing quote or EOF
   while AIndex < ALines.Count - 1 do
   begin
     Inc(AIndex);
     Line := ALines[AIndex];
     
-    (* Look for closing quote on this line *)
+    // Look for closing quote on this line
     EndPos := Pos(AQuoteChar, Line);
     if EndPos > 0 then
     begin
-      (* Found closing quote - append content before it and stop *)
+      // Found closing quote - append content before it and stop
       Result := Result + #10 + Copy(Line, 1, EndPos - 1);
       Exit;
     end
     else
-      (* No closing quote - append entire line and continue *)
+      // No closing quote - append entire line and continue
       Result := Result + #10 + Line;
   end;
-  (* If we get here, closing quote was never found - value includes rest of file *)
+  // If we get here, closing quote was never found - value includes rest of file
 end;
 
 (*
@@ -856,7 +856,7 @@ begin
   if Idx >= 0 then
     Result := FValues.GetPair(Idx).Value
   else
-    (* Not found locally - check system environment *)
+    // Not found locally - check system environment
     Result := SysUtils.GetEnvironmentVariable(AVarName);
 end;
 
@@ -888,7 +888,7 @@ var
   InBrace: Boolean;
   Ch: Char;
 begin
-  (* Skip interpolation if disabled in options *)
+  // Skip interpolation if disabled in options
   if not FOptions.Interpolate then
   begin
     Result := AValue;
@@ -898,14 +898,14 @@ begin
   Result := '';
   I := 1;
   
-  (* Process each character *)
+  // Process each character
   while I <= Length(AValue) do
   begin
     Ch := AValue[I];
     
     if Ch = '$' then
     begin
-      (* Found potential variable reference *)
+      // Found potential variable reference
       if (I < Length(AValue)) and (AValue[I + 1] = '{') then
       begin
         // ${VAR} syntax
@@ -982,7 +982,7 @@ begin
   Line := ALine;
   TrimmedLine := Trim(Line);
   
-  (* Skip empty lines and full-line comments *)
+  // Skip empty lines and full-line comments
   if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
     Exit;
   
@@ -991,21 +991,21 @@ begin
   if AnsiStartsStr('export ', TrimmedLine) then
     TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
   
-  (* Find the = separator between key and value *)
+  // Find the = separator between key and value
   EqPos := Pos('=', TrimmedLine);
   if EqPos = 0 then
-    Exit;  (* No = sign - invalid line *)
+    Exit;  // No = sign - invalid line
   
-  (* Extract the key (everything before =) *)
+  // Extract the key (everything before =)
   AKey := Trim(Copy(TrimmedLine, 1, EqPos - 1));
   if AKey = '' then
-    Exit;  (* Empty key - invalid line *)
+    Exit;  // Empty key - invalid line
   
-  (* Apply prefix if configured (e.g., 'APP_' + 'KEY' = 'APP_KEY') *)
+  // Apply prefix if configured (e.g., 'APP_' + 'KEY' = 'APP_KEY')
   if FOptions.Prefix <> '' then
     AKey := FOptions.Prefix + AKey;
   
-  (* Extract and parse the value (everything after =) *)
+  // Extract and parse the value (everything after =)
   RawValue := Copy(TrimmedLine, EqPos + 1, Length(TrimmedLine));
   RawValue := DetectQuote(RawValue, QuoteChar);
   AValue := ParseValue(RawValue, QuoteChar);
@@ -1036,9 +1036,9 @@ begin
   if (CurrentValue = '') or FOptions.Override then
   begin
     {$IFDEF WINDOWS}
-    (* On Windows, could use Windows.SetEnvironmentVariable *)
+    // On Windows, could use Windows.SetEnvironmentVariable
     {$ENDIF}
-    (* Currently just stores in internal storage - see FValues *)
+    // Currently just stores in internal storage - see FValues
   end;
 end;
 
@@ -1074,13 +1074,13 @@ var
 begin
   Result := False;
   
-  (* Default to '.env' if no path specified *)
+  // Default to '.env' if no path specified
   if APath = '' then
     FullPath := '.env'
   else
     FullPath := APath;
   
-  (* Check if file exists - return False if not (no exception) *)
+  // Check if file exists - return False if not (no exception)
   if not FileExists(FullPath) then
   begin
     if FOptions.Verbose then
@@ -1088,29 +1088,29 @@ begin
     Exit;
   end;
   
-  (* Read the entire file into a TStringList for line-by-line processing *)
+  // Read the entire file into a TStringList for line-by-line processing
   Lines := TStringList.Create;
   try
     Lines.LoadFromFile(FullPath);
     
-    (* Process each line *)
+    // Process each line
     I := 0;
     while I < Lines.Count do
     begin
       TrimmedLine := Trim(Lines[I]);
       
-      (* Skip empty lines and full-line comments *)
+      // Skip empty lines and full-line comments
       if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
       begin
         Inc(I);
         Continue;
       end;
       
-      (* Handle shell-compatible 'export' prefix *)
+      // Handle shell-compatible 'export' prefix
       if AnsiStartsStr('export ', TrimmedLine) then
         TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
       
-      (* Find '=' sign - required for valid KEY=value format *)
+      // Find '=' sign - required for valid KEY=value format
       EqPos := Pos('=', TrimmedLine);
       if EqPos = 0 then
       begin
@@ -1118,7 +1118,7 @@ begin
         Continue;
       end;
       
-      (* Extract the key name *)
+      // Extract the key name
       Key := Trim(Copy(TrimmedLine, 1, EqPos - 1));
       if Key = '' then
       begin
@@ -1126,24 +1126,24 @@ begin
         Continue;
       end;
       
-      (* Apply key prefix if configured *)
+      // Apply key prefix if configured
       if FOptions.Prefix <> '' then
         Key := FOptions.Prefix + Key;
       
-      (* Extract and parse the value *)
+      // Extract and parse the value
       RawValue := Copy(TrimmedLine, EqPos + 1, Length(TrimmedLine));
       RawValue := DetectQuote(RawValue, QuoteChar);
       
-      (* Check for multi-line value (quoted but no closing quote on this line) *)
+      // Check for multi-line value (quoted but no closing quote on this line)
       if (QuoteChar <> #0) and (Pos(QuoteChar, RawValue) = 0) then
         Value := ParseMultiLine(Lines, I, ParseValue(RawValue, #0), QuoteChar)
       else
         Value := ParseValue(RawValue, QuoteChar);
       
-      (* Perform variable interpolation (${VAR} and $VAR) *)
+      // Perform variable interpolation (${VAR} and $VAR)
       Value := InterpolateValue(Value);
       
-      (* Check if we should skip this key (don't override existing env vars) *)
+      // Check if we should skip this key (don't override existing env vars)
       if not FOptions.Override then
       begin
         if SysUtils.GetEnvironmentVariable(Key) <> '' then
@@ -1153,24 +1153,24 @@ begin
         end;
       end;
       
-      (* Store the key-value pair *)
+      // Store the key-value pair
       FValues.Add(Key, Value);
       
-      (* Verbose output for debugging *)
+      // Verbose output for debugging
       if FOptions.Verbose then
         WriteLn('DotEnv: Loaded ', Key, '=', Value);
       
       Inc(I);
     end;
     
-    (* Track which files have been loaded successfully *)
+    // Track which files have been loaded successfully
     SetLength(FLoadedFiles, Length(FLoadedFiles) + 1);
     FLoadedFiles[High(FLoadedFiles)] := FullPath;
     
     FLoaded := True;
     Result := True;
   finally
-    (* Always free the TStringList, even if an exception occurs *)
+    // Always free the TStringList, even if an exception occurs
     Lines.Free;
   end;
 end;
@@ -1186,7 +1186,7 @@ var
   Lines: TStringList;
   Content: string;
 begin
-  (* Read stream content using TStringList *)
+  // Read stream content using TStringList
   Lines := TStringList.Create;
   try
     Lines.LoadFromStream(AStream);
@@ -1195,7 +1195,7 @@ begin
     Lines.Free;
   end;
   
-  (* Delegate to LoadFromString for actual parsing *)
+  // Delegate to LoadFromString for actual parsing
   Result := LoadFromString(Content);
 end;
 
@@ -1218,29 +1218,29 @@ var
 begin
   Result := False;
   
-  (* Parse string into lines using TStringList *)
+  // Parse string into lines using TStringList
   Lines := TStringList.Create;
   try
     Lines.Text := AContent;
     
-    (* Process each line - same logic as Load *)
+    // Process each line - same logic as Load
     I := 0;
     while I < Lines.Count do
     begin
       TrimmedLine := Trim(Lines[I]);
       
-      (* Skip empty lines and comments *)
+      // Skip empty lines and comments
       if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
       begin
         Inc(I);
         Continue;
       end;
       
-      (* Handle 'export' prefix *)
+      // Handle 'export' prefix
       if AnsiStartsStr('export ', TrimmedLine) then
         TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
       
-      (* Find '=' sign *)
+      // Find '=' sign
       EqPos := Pos('=', TrimmedLine);
       if EqPos = 0 then
       begin
@@ -1248,7 +1248,7 @@ begin
         Continue;
       end;
       
-      (* Extract key *)
+      // Extract key
       Key := Trim(Copy(TrimmedLine, 1, EqPos - 1));
       if Key = '' then
       begin
@@ -1256,21 +1256,21 @@ begin
         Continue;
       end;
       
-      (* Apply prefix if set *)
+      // Apply prefix if set
       if FOptions.Prefix <> '' then
         Key := FOptions.Prefix + Key;
       
-      (* Extract and parse value *)
+      // Extract and parse value
       RawValue := Copy(TrimmedLine, EqPos + 1, Length(TrimmedLine));
       RawValue := DetectQuote(RawValue, QuoteChar);
       
-      (* Check for multi-line value *)
+      // Check for multi-line value
       if (QuoteChar <> #0) and (Pos(QuoteChar, RawValue) = 0) then
         Value := ParseMultiLine(Lines, I, ParseValue(RawValue, #0), QuoteChar)
       else
         Value := ParseValue(RawValue, QuoteChar);
       
-      (* Perform variable interpolation *)
+      // Perform variable interpolation
       Value := InterpolateValue(Value);
       
       FValues.Add(Key, Value);
@@ -1324,16 +1324,16 @@ function TDotEnv.Get(const AKey: string; const ADefault: string): string;
 var
   Idx: Integer;
 begin
-  (* First check our loaded values *)
+  // First check our loaded values
   Idx := FValues.Find(AKey);
   if Idx >= 0 then
     Result := FValues.GetPair(Idx).Value
   else
   begin
-    (* Not found locally - check system environment as fallback *)
+    // Not found locally - check system environment as fallback
     Result := SysUtils.GetEnvironmentVariable(AKey);
     if Result = '' then
-      Result := ADefault;  (* Use provided default as last resort *)
+      Result := ADefault;  // Use provided default as last resort
   end;
 end;
 
@@ -1341,7 +1341,7 @@ function TDotEnv.GetRequired(const AKey: string): string;
 begin
   Result := Get(AKey, '');
   if Result = '' then
-    (* Key not found anywhere - raise exception with helpful message *)
+    // Key not found anywhere - raise exception with helpful message
     raise EDotEnvMissingKey.CreateFmt('Required environment variable not found: %s', [AKey]);
 end;
 
@@ -1354,7 +1354,7 @@ begin
     Result := ADefault
   else
   begin
-    (* Try to convert to integer, use default if conversion fails *)
+    // Try to convert to integer, use default if conversion fails
     if not TryStrToInt(S, Result) then
       Result := ADefault;
   end;
@@ -1364,9 +1364,9 @@ function TDotEnv.GetIntRequired(const AKey: string): Integer;
 var
   S: string;
 begin
-  S := GetRequired(AKey);  (* This throws if key missing *)
+  S := GetRequired(AKey);  // This throws if key missing
   if not TryStrToInt(S, Result) then
-    (* Key exists but value isn't a valid integer *)
+    // Key exists but value isn't a valid integer
     raise EDotEnvParseError.CreateFmt('Cannot convert %s to integer: %s', [AKey, S]);
 end;
 
@@ -1374,12 +1374,12 @@ function TDotEnv.GetBool(const AKey: string; const ADefault: Boolean): Boolean;
 var
   S: string;
 begin
-  (* Get value and normalize to lowercase for comparison *)
+  // Get value and normalize to lowercase for comparison
   S := LowerCase(Trim(Get(AKey, '')));
   if S = '' then
     Result := ADefault
   else
-    (* Recognize common truthy values - everything else is false *)
+    // Recognize common truthy values - everything else is false
     Result := (S = 'true') or (S = '1') or (S = 'yes') or (S = 'on');
 end;
 
@@ -1402,7 +1402,7 @@ begin
     Result := ADefault
   else
   begin
-    (* TryStrToFloat handles locale-specific decimal separators *)
+    // TryStrToFloat handles locale-specific decimal separators
     if not TryStrToFloat(S, Result) then
       Result := ADefault;
   end;
@@ -1440,14 +1440,14 @@ begin
     Exit;
   end;
   
-  (* Use TStringList's built-in delimiter parsing *)
+  // Use TStringList's built-in delimiter parsing
   Parts := TStringList.Create;
   try
-    Parts.Delimiter := ASeparator[1];    (* Only uses first char of separator *)
-    Parts.StrictDelimiter := True;       (* Don't treat spaces as delimiters *)
+    Parts.Delimiter := ASeparator[1];    // Only uses first char of separator
+    Parts.StrictDelimiter := True;       // Don't treat spaces as delimiters
     Parts.DelimitedText := S;
     
-    (* Copy to result array, trimming each element *)
+    // Copy to result array, trimming each element
     SetLength(Result, Parts.Count);
     for I := 0 to Parts.Count - 1 do
       Result[I] := Trim(Parts[I]);
@@ -1462,7 +1462,7 @@ end;
 
 function TDotEnv.Has(const AKey: string): Boolean;
 begin
-  (* Check both loaded values AND system environment *)
+  // Check both loaded values AND system environment
   Result := (FValues.Find(AKey) >= 0) or 
             (SysUtils.GetEnvironmentVariable(AKey) <> '');
 end;
@@ -1511,7 +1511,7 @@ begin
     Result[I] := FValues.GetPair(I);
 end;
 
-(* Returns the number of loaded environment variables *)
+// Returns the number of loaded environment variables
 function TDotEnv.Count: Integer;
 begin
   Result := FValues.Count;
@@ -1541,7 +1541,7 @@ begin
     if not Has(ARequiredKeys[I]) then
     begin
       Result := False;
-      Exit;  (* Fail fast on first missing key *)
+      Exit;  // Fail fast on first missing key
     end;
   end;
 end;
@@ -1563,7 +1563,7 @@ var
   I, MissingCount: Integer;
   Temp: TStringDynArray;
 begin
-  (* Pre-allocate maximum possible size *)
+  // Pre-allocate maximum possible size
   SetLength(Temp, Length(ARequiredKeys));
   MissingCount := 0;
   
@@ -1576,7 +1576,7 @@ begin
     end;
   end;
   
-  (* Shrink to actual count of missing keys *)
+  // Shrink to actual count of missing keys
   SetLength(Result, MissingCount);
   for I := 0 to MissingCount - 1 do
     Result[I] := Temp[I];
@@ -1630,7 +1630,7 @@ begin
   begin
     Pair := FValues.GetPair(I);
     if Result <> '' then
-      Result := Result + LineEnding;  (* Platform-independent line ending *)
+      Result := Result + LineEnding;  // Platform-independent line ending
     Result := Result + Pair.Key + '=' + Pair.Value;
   end;
 end;
@@ -1690,7 +1690,7 @@ begin
   if not GlobalDotEnvInitialized then
   begin
     GlobalDotEnv := TDotEnv.Create;
-    GlobalDotEnv.Load;  (* Auto-load default '.env' file *)
+    GlobalDotEnv.Load;  // Auto-load default '.env' file
     GlobalDotEnvInitialized := True;
   end;
   Result := GlobalDotEnv.Get(AKey, ADefault);

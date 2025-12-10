@@ -1,4 +1,4 @@
-{
+(*
   Basic Example - DotEnv for Free Pascal
   
   This example demonstrates the main features of the dotenv-fp library.
@@ -12,7 +12,7 @@
   ALLOWED_HOSTS=localhost,127.0.0.1,example.com
   APP_NAME=MyApp
   GREETING="Hello, ${APP_NAME}!"
-}
+*)
 program basic_example;
 
 {$mode objfpc}{$H+}{$J-}

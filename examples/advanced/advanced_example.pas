@@ -1,4 +1,4 @@
-{
+(*
   Advanced Example - DotEnv for Free Pascal
   
   Demonstrates:
@@ -7,7 +7,7 @@
   - Environment prefixing
   - Override behavior
   - Global helpers
-}
+*)
 program advanced_example;
 
 {$mode objfpc}{$H+}{$J-}
