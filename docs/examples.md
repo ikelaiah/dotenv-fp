@@ -16,8 +16,6 @@ Real-world examples and patterns for using dotenv-fp.
   - [Logging Configuration](#logging-configuration)
   - [Tips \& Best Practices](#tips--best-practices)
 
----
-
 ## Basic Application
 
 Simple application with configuration:
@@ -55,8 +53,6 @@ begin
     WriteLn('Debug mode enabled');
 end.
 ```
-
----
 
 ## Web Server Configuration
 
@@ -120,8 +116,6 @@ begin
 end.
 ```
 
----
-
 ## Database Connection
 
 **.env**
@@ -173,8 +167,6 @@ begin
   WriteLn('Timeout: ', Env.GetInt('DB_TIMEOUT', 30), 's');
 end.
 ```
-
----
 
 ## Multi-Environment Setup
 
@@ -241,8 +233,6 @@ begin
 end.
 ```
 
----
-
 ## Validation Pattern
 
 Fail fast if required configuration is missing:
@@ -289,8 +279,6 @@ begin
 end.
 ```
 
----
-
 ## Testing with Mock Environment
 
 Load configuration from strings for testing:
@@ -328,8 +316,6 @@ begin
   TestWithMockEnv;
 end.
 ```
-
----
 
 ## Feature Flags
 
@@ -380,8 +366,6 @@ begin
   end;
 end.
 ```
-
----
 
 ## Logging Configuration
 
@@ -445,8 +429,6 @@ begin
   WriteLn('Keep files: ', Env.GetInt('LOG_KEEP_FILES', 3));
 end.
 ```
-
----
 
 ## Tips & Best Practices
 

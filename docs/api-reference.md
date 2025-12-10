@@ -10,8 +10,6 @@ Complete reference for all types, methods, and functions in dotenv-fp.
 - [Global Helper Functions](#global-helper-functions)
 - [Exceptions](#exceptions)
 
----
-
 ## Types
 
 ### TDotEnvPair
@@ -41,8 +39,6 @@ Array of strings (used for `GetArray`, `Keys`, `Values`, etc.). This type is pro
 // From the Types unit:
 TStringDynArray = array of AnsiString;
 ```
-
----
 
 ## TDotEnv Record
 
@@ -87,8 +83,6 @@ begin
   Env := TDotEnv.CreateWithOptions(Options);
 end;
 ```
-
----
 
 ### Loading Methods
 
@@ -160,8 +154,6 @@ function LoadMultiple(const APaths: array of string): Boolean;
 Env.LoadMultiple(['.env', '.env.local', '.env.development']);
 ```
 
----
-
 ### String Getters
 
 #### `Get`
@@ -188,8 +180,6 @@ function GetRequired(const AKey: string): string;
 
 **Raises:** `EDotEnvMissingKey` if key doesn't exist
 
----
-
 ### Integer Getters
 
 #### `GetInt`
@@ -215,8 +205,6 @@ function GetIntRequired(const AKey: string): Integer;
 ```
 
 **Raises:** `EDotEnvMissingKey` or `EDotEnvParseError`
-
----
 
 ### Boolean Getters
 
@@ -246,8 +234,6 @@ Gets a required boolean value.
 function GetBoolRequired(const AKey: string): Boolean;
 ```
 
----
-
 ### Float Getters
 
 #### `GetFloat`
@@ -272,8 +258,6 @@ Gets a required float value.
 function GetFloatRequired(const AKey: string): Double;
 ```
 
----
-
 ### Array Getter
 
 #### `GetArray`
@@ -292,8 +276,6 @@ Hosts := Env.GetArray('HOSTS');              // Split by comma
 // TAGS=web;api;backend
 Tags := Env.GetArray('TAGS', ';');           // Split by semicolon
 ```
-
----
 
 ### Utility Methods
 
@@ -353,8 +335,6 @@ Returns list of files that were loaded.
 function LoadedFiles: TStringDynArray;
 ```
 
----
-
 ### Validation Methods
 
 #### `Validate`
@@ -386,8 +366,6 @@ for I := 0 to High(Missing) do
   WriteLn('Missing: ', Missing[I]);
 ```
 
----
-
 ### Environment Methods
 
 #### `SetToEnv`
@@ -406,16 +384,12 @@ Gets a value directly from system environment.
 function GetFromEnv(const AKey: string; const ADefault: string = ''): string;
 ```
 
----
-
 ### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `Options` | `TDotEnvOptions` | Read/write configuration options |
 | `Loaded` | `Boolean` | Read-only, `True` if any file was loaded |
-
----
 
 ## TDotEnvOptions Record
 
@@ -440,8 +414,6 @@ Returns options with default values.
 ```pascal
 class function Default: TDotEnvOptions; static;
 ```
-
----
 
 ## Global Helper Functions
 
@@ -479,8 +451,6 @@ begin
   WriteLn(DotEnvGet('PORT', '3000'));
 end.
 ```
-
----
 
 ## Exceptions
 

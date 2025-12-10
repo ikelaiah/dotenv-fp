@@ -14,8 +14,6 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 [![Documentation](https://img.shields.io/badge/Docs-Available-brightgreen.svg)](docs/)
 [![Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)]()
 
----
-
 ## ✨ Features
 
 | Feature | Description |
@@ -33,8 +31,6 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 | 🏷️ **Key prefixing** | Add prefixes like `APP_` to all loaded keys |
 | 🧹 **Zero memory leaks** | Uses advanced records — no manual `Free` calls! |
 | 📦 **Zero dependencies** | Only standard FPC units |
-
----
 
 ## 🚀 Quick Start
 
@@ -90,8 +86,6 @@ begin
 end.
 ```
 
----
-
 ## 📖 `.env` File Format
 
 ```bash
@@ -126,8 +120,6 @@ export SHELL_VAR=works_in_bash_too
 ALLOWED_HOSTS=localhost,127.0.0.1,example.com
 FEATURES=auth,logging,cache
 ```
-
----
 
 ## 📚 API Reference
 
@@ -251,8 +243,6 @@ begin
 end.
 ```
 
----
-
 ## 🔗 Variable Interpolation
 
 Reference other variables using `${VAR}` or `$VAR` syntax:
@@ -275,8 +265,6 @@ HOME_CONFIG=${HOME}/.myapp/config
 **Resolution order:**
 1. Variables defined earlier in the same `.env` file
 2. System environment variables
-
----
 
 ## ⚙️ Options
 
@@ -302,8 +290,6 @@ begin
   WriteLn(Env.Get('MYAPP_KEY'));
 end;
 ```
-
----
 
 ## ⚠️ Error Handling
 
@@ -334,9 +320,9 @@ begin
 end.
 ```
 
----
-
 ## 🆚 Comparison with Python dotenv
+
+dotenv-fp is inspired by [python-dotenv](https://github.com/theskumar/python-dotenv) and provides equivalent core functionality, plus additional features suited for statically-typed Pascal development:
 
 | Feature | python-dotenv | dotenv-fp |
 |---------|:-------------:|:---------:|
@@ -347,13 +333,11 @@ end.
 | Export prefix | ✅ | ✅ |
 | Comments | ✅ | ✅ |
 | Override mode | ✅ | ✅ |
-| **Type-safe getters** | ❌ | ✅ |
-| **Required validation** | ❌ | ✅ |
-| **Array parsing** | ❌ | ✅ |
-| **Key prefixing** | ❌ | ✅ |
-| **Zero memory management** | N/A | ✅ |
-
----
+| **Type-safe getters** | — | ✅ |
+| **Built-in validation** | — | ✅ |
+| **Array parsing** | — | ✅ |
+| **Key prefixing** | — | ✅ |
+| **Automatic memory management** | N/A | ✅ |
 
 ## 🧪 Running Tests
 
@@ -377,8 +361,6 @@ Number of errors:    0
 Number of failures:  0
 ```
 
----
-
 ## 📁 Project Structure
 
 ```
@@ -397,8 +379,6 @@ dotenv-fp/
 └── README.md
 ```
 
----
-
 ## 💡 Tips for New Free Pascal Developers
 
 1. **Advanced Records**: This library uses advanced records (`{$modeswitch advancedrecords}`), which means you don't need to call `.Free` — memory is managed automatically!
@@ -409,8 +389,6 @@ dotenv-fp/
 
 4. **File Paths**: Use forward slashes `/` or the `PathDelim` constant for cross-platform compatibility.
 
----
-
 ## 🤝 Contributing
 
 Contributions are welcome! Feel free to:
@@ -419,13 +397,9 @@ Contributions are welcome! Feel free to:
 - 💡 Suggest features  
 - 🔧 Submit pull requests
 
----
-
 ## 📄 License
 
 MIT License — See [LICENSE](LICENSE) file for details.
-
----
 
 ## 🙏 Acknowledgments
 

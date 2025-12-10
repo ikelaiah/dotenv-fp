@@ -17,8 +17,6 @@ PORT=3000
 - No spaces around the `=` sign
 - Values are trimmed of leading/trailing whitespace (unless quoted)
 
----
-
 ## Comments
 
 ```bash
@@ -28,8 +26,6 @@ DATABASE_URL=postgresql://localhost/mydb  # Inline comment
 # Empty lines are ignored
 
 ```
-
----
 
 ## Quoted Values
 
@@ -62,8 +58,6 @@ PORT=3000
 DEBUG=true
 ```
 
----
-
 ## Variable Interpolation
 
 Reference other variables using `${VAR}` or `$VAR`:
@@ -93,8 +87,6 @@ USER_CACHE=${USERPROFILE}/.cache
 LITERAL='${NOT_REPLACED}'  # Stays as '${NOT_REPLACED}'
 ```
 
----
-
 ## Multi-line Values
 
 Use quotes for values spanning multiple lines:
@@ -117,8 +109,6 @@ JSON_CONFIG='{
 }'
 ```
 
----
-
 ## Export Prefix
 
 For shell compatibility, the `export` keyword is supported and ignored:
@@ -133,8 +123,6 @@ This allows the same `.env` file to be sourced in shell scripts:
 source .env
 echo $DATABASE_URL
 ```
-
----
 
 ## Arrays / Lists
 
@@ -165,8 +153,6 @@ TAGS=web;api;backend
 Tags := Env.GetArray('TAGS', ';');  // Split by semicolon
 ```
 
----
-
 ## Boolean Values
 
 The following are recognized as truthy/falsy:
@@ -190,8 +176,6 @@ FEATURE_ENABLED=yes
 USE_CACHE=1
 MAINTENANCE_MODE=off
 ```
-
----
 
 ## Special Characters
 
@@ -219,8 +203,6 @@ DOLLAR='$100'
 # Simple values only
 SIMPLE=no_special_chars
 ```
-
----
 
 ## Complete Example
 
@@ -261,8 +243,6 @@ MIIC+zCCAeOgAwIBAgIJALZT...
 # Shell compatible
 export SHELL_VAR=works_in_bash_too
 ```
-
----
 
 ## Best Practices
 

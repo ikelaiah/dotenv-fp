@@ -28,8 +28,6 @@ end;
 | `Prefix` | `String` | `''` | Add prefix to all loaded key names |
 | `Encoding` | `String` | `'UTF-8'` | File encoding |
 
----
-
 ## Override
 
 **Default:** `False`
@@ -51,8 +49,6 @@ WriteLn(Env.Get('PORT'));  // Now uses value from .env
 **Use cases:**
 - `False`: Respect deployment environment settings (production)
 - `True`: Force specific values during development/testing
-
----
 
 ## Interpolate
 
@@ -80,8 +76,6 @@ WriteLn(Env.Get('API_ENDPOINT'));  // '${BASE_URL}/v1/users' (literal)
 1. Variables defined earlier in the same `.env` file
 2. System environment variables
 
----
-
 ## Verbose
 
 **Default:** `False`
@@ -97,8 +91,6 @@ Env.Load;
 // Parsed: PORT = 3000
 // ...
 ```
-
----
 
 ## Prefix
 
@@ -128,8 +120,6 @@ WriteLn(Env.Get('HOST'));  // '' (empty)
 - Loading multiple `.env` files without conflicts
 - Organizing variables by application/service
 - Multi-tenant applications
-
----
 
 ## Complete Example
 
