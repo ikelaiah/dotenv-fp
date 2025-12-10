@@ -251,10 +251,6 @@ type
        Returns empty string if variable not found. *)
     function ExpandVariable(const AVarName: string): string;
     
-    (* Placeholder for applying values to system environment.
-       Currently only stores values internally. *)
-    procedure ApplyToEnvironment(const AKey, AValue: string);
-    
     (* Handles multi-line values that span multiple lines in the file.
        Called when opening quote is found but closing quote is not on same line.
        Continues reading lines until closing quote is found. *)
@@ -1014,35 +1010,6 @@ begin
 end;
 
 (*
-  ApplyToEnvironment - Placeholder for setting system environment variables
-  -------------------------------------------------------------------------
-  Currently this method doesn't actually set system environment variables.
-  Values are stored internally in FValues instead.
-  
-  FUTURE ENHANCEMENT:
-  Could use platform-specific APIs to actually modify the process environment:
-  - Windows: SetEnvironmentVariable
-  - Unix: setenv()
-  
-  Note: Setting env vars at runtime only affects the current process and
-  its children, not the parent shell or other processes.
-*)
-procedure TDotEnv.ApplyToEnvironment(const AKey, AValue: string);
-var
-  CurrentValue: string;
-begin
-  CurrentValue := SysUtils.GetEnvironmentVariable(AKey);
-  
-  if (CurrentValue = '') or FOptions.Override then
-  begin
-    {$IFDEF WINDOWS}
-    // On Windows, could use Windows.SetEnvironmentVariable
-    {$ENDIF}
-    // Currently just stores in internal storage - see FValues
-  end;
-end;
-
-(*
   Load - Loads environment variables from a .env file
   -------------------------------------------------------------------------
   This is the main entry point for loading configuration. It:
@@ -1293,8 +1260,8 @@ end;
   
   Example:
     Env.LoadMultiple(['.env', '.env.local', '.env.development']);
-    (* .env has base config, .env.local overrides for this machine,
-       .env.development overrides for dev environment *)
+       .env has base config, .env.local overrides for this machine,
+       .env.development overrides for dev environment
   
   Returns True if at least one file was loaded successfully.
 *)
