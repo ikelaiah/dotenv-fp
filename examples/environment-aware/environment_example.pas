@@ -10,11 +10,22 @@ program environment_example;
   This example shows how to use the new LoadForEnvironment() method
   to automatically load environment-specific configuration files.
 
-  Common pattern:
-    - .env                 (base configuration, committed to Git)
-    - .env.development     (development overrides, committed to Git)
-    - .env.production      (production overrides, committed to Git)
-    - .env.local           (local overrides, NOT committed, in .gitignore)
+  SECURITY NOTE: The files created by this example contain NO secrets.
+  They only demonstrate the loading pattern with non-sensitive config.
+
+  File pattern (for demonstration only - no actual secrets):
+    - .env                 (base non-secret config)
+    - .env.development     (dev overrides - no secrets)
+    - .env.production      (prod overrides - no secrets)
+
+  IMPORTANT - Real-world security best practices:
+    1. NEVER commit files with actual secrets/credentials to Git
+    2. Use .env.example files (empty values) for version control
+    3. Add .env* to .gitignore (except .env.example)
+    4. Store real secrets in:
+       - Environment variables (set by hosting platform)
+       - Secret management tools (AWS Secrets Manager, Vault, etc.)
+       - Local .env files (NOT committed to Git)
 
   Usage:
     1. Create test .env files

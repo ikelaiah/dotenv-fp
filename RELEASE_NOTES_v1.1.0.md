@@ -119,10 +119,27 @@ PORT=
 
 ## Examples
 
-Two new comprehensive examples added in `examples/v1.1.0/`:
+Two new comprehensive examples added as Lazarus projects:
 
-1. **setup_example.pas** - Interactive setup wizard using `GetOrPrompt()` and `Save()`
-2. **environment_example.pas** - Multi-environment loading with `LoadForEnvironment()`
+1. **examples/interactive-setup/** - Interactive setup wizard using `GetOrPrompt()` and `Save()`
+   - Includes `.lpi` project file and comprehensive README
+
+2. **examples/environment-aware/** - Multi-environment loading with `LoadForEnvironment()`
+   - Includes `.lpi` project file and comprehensive README
+
+### ⚠️ Important Security Note for Examples
+
+The example programs create files with **NO actual secrets** - only demonstration values like `DEBUG=true` or `PORT=3000`. They are meant to show the loading pattern, not production security practices.
+
+**Real-world security best practices:**
+
+1. **NEVER commit files with actual secrets to Git**, even if named `.env.production`
+2. Use `.env.example` files (empty values) for version control
+3. Add `.env*` to `.gitignore` (except `.env.example`)
+4. Store real secrets in:
+   - Environment variables (set by hosting platform: Heroku, AWS, Azure, etc.)
+   - Secret management tools (AWS Secrets Manager, HashiCorp Vault, etc.)
+   - Local `.env` files (NOT committed to Git)
 
 ## Testing
 
