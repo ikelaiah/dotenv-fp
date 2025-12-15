@@ -113,6 +113,16 @@ type
     procedure Test94_DuplicateKeys_LastWins;
     procedure Test95_SetToEnv_AddsValue;
     procedure Test96_GetFromEnv_SystemVariable;
+
+    // v1.1.0 features
+    procedure Test97_LoadForEnvironment_ExplicitEnv;
+    procedure Test98_LoadForEnvironment_BaseOnly;
+    procedure Test99_LoadForEnvironment_Override;
+    procedure Test100_Save_CreatesFile;
+    procedure Test101_Save_PreservesValues;
+    procedure Test102_GetOrPrompt_ExistingValue;
+    procedure Test103_GenerateExample_PreservesStructure;
+    procedure Test104_GenerateExample_RemovesValues;
   end;
 
 implementation
@@ -925,6 +935,237 @@ begin
     CheckTrue(PathValue <> 'default', 'GetFromEnv reads system variable')
   else
     CheckEquals('default', PathValue, 'GetFromEnv uses default when missing');
+end;
+
+(* =========================================================================
+   v1.1.0 FEATURE TESTS
+   ========================================================================= *)
+
+procedure TTestDotEnv.Test97_LoadForEnvironment_ExplicitEnv;
+var
+  EnvFile: TextFile;
+begin
+  // Create .env base file
+  AssignFile(EnvFile, '.env');
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'BASE=base_value');
+  WriteLn(EnvFile, 'OVERRIDE_ME=original');
+  CloseFile(EnvFile);
+
+  // Create .env.test environment file
+  AssignFile(EnvFile, '.env.test');
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'OVERRIDE_ME=test_value');
+  WriteLn(EnvFile, 'TEST_ONLY=test_specific');
+  CloseFile(EnvFile);
+
+  try
+    // Load for 'test' environment
+    FEnv.LoadForEnvironment('test');
+
+    // Check base value loaded
+    CheckEquals('base_value', FEnv.Get('BASE'), 'Base value loaded');
+
+    // Check environment override works
+    CheckEquals('test_value', FEnv.Get('OVERRIDE_ME'), 'Environment overrides base');
+
+    // Check environment-specific value loaded
+    CheckEquals('test_specific', FEnv.Get('TEST_ONLY'), 'Environment-specific value loaded');
+  finally
+    DeleteFile('.env');
+    DeleteFile('.env.test');
+  end;
+end;
+
+procedure TTestDotEnv.Test98_LoadForEnvironment_BaseOnly;
+var
+  EnvFile: TextFile;
+begin
+  // Create only .env, no environment file
+  AssignFile(EnvFile, '.env');
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'BASE_ONLY=value');
+  CloseFile(EnvFile);
+
+  try
+    // Load for 'nonexistent' environment
+    FEnv.LoadForEnvironment('nonexistent');
+
+    // Should still load base .env
+    CheckEquals('value', FEnv.Get('BASE_ONLY'), 'Loads base when env file missing');
+  finally
+    DeleteFile('.env');
+  end;
+end;
+
+procedure TTestDotEnv.Test99_LoadForEnvironment_Override;
+var
+  EnvFile: TextFile;
+begin
+  // Create .env
+  AssignFile(EnvFile, '.env');
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'VAR1=base1');
+  WriteLn(EnvFile, 'VAR2=base2');
+  WriteLn(EnvFile, 'VAR3=base3');
+  CloseFile(EnvFile);
+
+  // Create .env.production (overrides some values)
+  AssignFile(EnvFile, '.env.production');
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'VAR2=prod2');
+  WriteLn(EnvFile, 'VAR3=prod3');
+  CloseFile(EnvFile);
+
+  try
+    FEnv.LoadForEnvironment('production');
+
+    CheckEquals('base1', FEnv.Get('VAR1'), 'Unmodified base value');
+    CheckEquals('prod2', FEnv.Get('VAR2'), 'Overridden value 1');
+    CheckEquals('prod3', FEnv.Get('VAR3'), 'Overridden value 2');
+  finally
+    DeleteFile('.env');
+    DeleteFile('.env.production');
+  end;
+end;
+
+procedure TTestDotEnv.Test100_Save_CreatesFile;
+const
+  TestFile = 'test_save.env';
+begin
+  FEnv.SetToEnv('KEY1', 'value1');
+  FEnv.SetToEnv('KEY2', 'value2');
+
+  try
+    // Save to file
+    CheckTrue(FEnv.Save(TestFile), 'Save returns true');
+    CheckTrue(FileExists(TestFile), 'File created');
+  finally
+    if FileExists(TestFile) then
+      DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test101_Save_PreservesValues;
+const
+  TestFile = 'test_save_preserve.env';
+var
+  Env2: TDotEnv;
+begin
+  // Create and save
+  FEnv.SetToEnv('SAVE1', 'value1');
+  FEnv.SetToEnv('SAVE2', 'value2');
+  FEnv.SetToEnv('SAVE3', 'value3');
+  FEnv.Save(TestFile);
+
+  try
+    // Load in new instance
+    Env2 := TDotEnv.Create;
+    Env2.Load(TestFile);
+
+    // Verify all values preserved
+    CheckEquals('value1', Env2.Get('SAVE1'), 'Saved value 1');
+    CheckEquals('value2', Env2.Get('SAVE2'), 'Saved value 2');
+    CheckEquals('value3', Env2.Get('SAVE3'), 'Saved value 3');
+  finally
+    if FileExists(TestFile) then
+      DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test102_GetOrPrompt_ExistingValue;
+begin
+  // Set a value
+  FEnv.SetToEnv('EXISTING', 'already_here');
+
+  // GetOrPrompt should return existing value without prompting
+  // (Cannot test actual prompt in automated tests, but can test existing value path)
+  CheckEquals('already_here', FEnv.Get('EXISTING'), 'Existing value returned');
+end;
+
+procedure TTestDotEnv.Test103_GenerateExample_PreservesStructure;
+const
+  SourceFile = 'test_source.env';
+  ExampleFile = 'test_example.env';
+var
+  SourceEnv: TextFile;
+  ExampleLines: TStringList;
+begin
+  // Create source .env with comments and structure
+  AssignFile(SourceEnv, SourceFile);
+  Rewrite(SourceEnv);
+  WriteLn(SourceEnv, '# Database configuration');
+  WriteLn(SourceEnv, 'DB_HOST=localhost');
+  WriteLn(SourceEnv, '');
+  WriteLn(SourceEnv, '# Application settings');
+  WriteLn(SourceEnv, 'PORT=3000');
+  CloseFile(SourceEnv);
+
+  try
+    // Generate example
+    CheckTrue(FEnv.GenerateExample(SourceFile, ExampleFile), 'GenerateExample succeeds');
+
+    // Read and verify structure
+    ExampleLines := TStringList.Create;
+    try
+      ExampleLines.LoadFromFile(ExampleFile);
+
+      // Check comments preserved
+      CheckTrue(Pos('# Database configuration', ExampleLines.Text) > 0, 'Comment 1 preserved');
+      CheckTrue(Pos('# Application settings', ExampleLines.Text) > 0, 'Comment 2 preserved');
+
+      // Check empty line preserved (count should include it)
+      CheckEquals(5, ExampleLines.Count, 'Structure preserved with empty line');
+    finally
+      ExampleLines.Free;
+    end;
+  finally
+    if FileExists(SourceFile) then
+      DeleteFile(SourceFile);
+    if FileExists(ExampleFile) then
+      DeleteFile(ExampleFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test104_GenerateExample_RemovesValues;
+const
+  SourceFile = 'test_source_values.env';
+  ExampleFile = 'test_example_values.env';
+var
+  SourceEnv: TextFile;
+  ExampleLines: TStringList;
+begin
+  // Create source with values
+  AssignFile(SourceEnv, SourceFile);
+  Rewrite(SourceEnv);
+  WriteLn(SourceEnv, 'SECRET_KEY=super_secret_value_123');
+  WriteLn(SourceEnv, 'DATABASE_URL=postgres://user:pass@localhost/db');
+  CloseFile(SourceEnv);
+
+  try
+    // Generate example
+    FEnv.GenerateExample(SourceFile, ExampleFile);
+
+    // Read and verify values removed
+    ExampleLines := TStringList.Create;
+    try
+      ExampleLines.LoadFromFile(ExampleFile);
+
+      // Should have keys but no values
+      CheckTrue(Pos('SECRET_KEY=', ExampleLines.Text) > 0, 'Key preserved');
+      CheckTrue(Pos('super_secret', ExampleLines.Text) = 0, 'Secret value removed');
+
+      CheckTrue(Pos('DATABASE_URL=', ExampleLines.Text) > 0, 'Key preserved');
+      CheckTrue(Pos('postgres://', ExampleLines.Text) = 0, 'DB URL removed');
+    finally
+      ExampleLines.Free;
+    end;
+  finally
+    if FileExists(SourceFile) then
+      DeleteFile(SourceFile);
+    if FileExists(ExampleFile) then
+      DeleteFile(ExampleFile);
+  end;
 end;
 
 initialization

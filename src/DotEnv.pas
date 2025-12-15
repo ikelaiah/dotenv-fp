@@ -63,7 +63,7 @@
   
   LICENSE: MIT
   AUTHOR: ikelaiah
-  VERSION: 1.0.0
+  VERSION: 1.1.0
   ==========================================================================
 *)
 unit DotEnv;
@@ -304,6 +304,16 @@ type
        Returns: True if at least one file was loaded.
        Example: Env.LoadMultiple(['.env', '.env.local', '.env.development']); *)
     function LoadMultiple(const APaths: array of string): Boolean;
+
+    (* Loads environment-specific .env files automatically.
+       First loads .env (base config), then .env.{environment} (overrides).
+       If AEnvironment is empty, tries to detect from APP_ENV or NODE_ENV.
+       If no environment detected, only loads .env.
+       Example:
+         Env.LoadForEnvironment('development');  // Loads .env + .env.development
+         Env.LoadForEnvironment('production');   // Loads .env + .env.production
+         Env.LoadForEnvironment();               // Auto-detect from environment *)
+    function LoadForEnvironment(const AEnvironment: string = ''): Boolean;
     
     (* =====================================================================
        STRING GETTERS
@@ -314,11 +324,22 @@ type
        Returns ADefault if key not found anywhere.
        Example: DbUrl := Env.Get('DATABASE_URL', 'sqlite://local.db'); *)
     function Get(const AKey: string; const ADefault: string = ''): string;
-    
+
     (* Gets a required string value by key.
        Raises EDotEnvMissingKey if the key doesn't exist.
        Use this for configuration that MUST be present. *)
     function GetRequired(const AKey: string): string;
+
+    (* Gets a value by key, prompts user if missing.
+       Useful for interactive setup scripts or first-run configuration.
+       If key exists, returns its value.
+       If key missing, prompts user with APrompt and optional default.
+       The entered value is stored but NOT saved to file automatically.
+       Example:
+         DbUrl := Env.GetOrPrompt('DATABASE_URL',
+                                  'Enter database URL',
+                                  'postgres://localhost/mydb'); *)
+    function GetOrPrompt(const AKey, APrompt: string; const ADefault: string = ''): string;
     
     (* =====================================================================
        INTEGER GETTERS
@@ -417,15 +438,37 @@ type
     (* =====================================================================
        ENVIRONMENT INTERACTION
        ===================================================================== *)
-    
+
     (* Sets a key-value pair in the internal storage.
        Does NOT modify system environment variables.
        Useful for programmatically adding configuration at runtime. *)
     procedure SetToEnv(const AKey, AValue: string);
-    
+
     (* Gets a value directly from system environment (bypasses loaded values).
        Returns ADefault if the system env var is not set. *)
     function GetFromEnv(const AKey: string; const ADefault: string = ''): string;
+
+    (* =====================================================================
+       FILE OPERATIONS
+       ===================================================================== *)
+
+    (* Saves all loaded key-value pairs to a .env file.
+       Format: KEY=value (one per line)
+       Returns: True if file was saved successfully.
+       Example:
+         Env.SetToEnv('DATABASE_URL', 'postgres://...');
+         Env.Save('.env'); *)
+    function Save(const APath: string = '.env'): Boolean;
+
+    (* Generates an example .env file with keys but empty values.
+       Useful for creating .env.example files for version control.
+       ASourcePath: Source .env file to read (default: '.env')
+       ADestPath: Destination example file (default: '.env.example')
+       Returns: True if example file was created successfully.
+       Example:
+         Env.GenerateExample('.env', '.env.example'); *)
+    function GenerateExample(const ASourcePath: string = '.env';
+                            const ADestPath: string = '.env.example'): Boolean;
     
     (* =====================================================================
        DEBUG METHODS
@@ -1257,12 +1300,12 @@ end;
   Files are loaded in order, with later files overriding values from
   earlier files. This is the standard pattern for environment-specific
   configuration:
-  
+
   Example:
     Env.LoadMultiple(['.env', '.env.local', '.env.development']);
        .env has base config, .env.local overrides for this machine,
        .env.development overrides for dev environment
-  
+
   Returns True if at least one file was loaded successfully.
 *)
 function TDotEnv.LoadMultiple(const APaths: array of string): Boolean;
@@ -1277,6 +1320,57 @@ begin
       AnyLoaded := True;
   end;
   Result := AnyLoaded;
+end;
+
+(*
+  LoadForEnvironment - Automatically loads environment-specific files
+  -------------------------------------------------------------------------
+  This is a convenience method that implements the standard pattern of
+  loading base config from .env, then environment-specific overrides from
+  .env.{environment}.
+
+  Environment detection priority:
+  1. Use AEnvironment parameter if provided
+  2. Check APP_ENV system environment variable
+  3. Check NODE_ENV system environment variable
+  4. If none found, only load .env
+
+  Example:
+    Env.LoadForEnvironment('production');  // Loads .env + .env.production
+    Env.LoadForEnvironment();              // Auto-detects environment
+*)
+function TDotEnv.LoadForEnvironment(const AEnvironment: string): Boolean;
+var
+  Environment: string;
+  EnvFile: string;
+begin
+  Result := False;
+
+  // Determine which environment to use
+  if AEnvironment <> '' then
+    Environment := AEnvironment
+  else
+  begin
+    // Try to auto-detect from system environment variables
+    Environment := SysUtils.GetEnvironmentVariable('APP_ENV');
+    if Environment = '' then
+      Environment := SysUtils.GetEnvironmentVariable('NODE_ENV');
+  end;
+
+  // Always load base .env file first
+  if Load('.env') then
+    Result := True;
+
+  // Load environment-specific file if environment is specified
+  if Environment <> '' then
+  begin
+    EnvFile := '.env.' + Environment;
+    if Load(EnvFile) then
+      Result := True;
+
+    if FOptions.Verbose then
+      WriteLn('DotEnv: Loaded for environment: ', Environment);
+  end;
 end;
 
 (* =========================================================================
@@ -1310,6 +1404,47 @@ begin
   if Result = '' then
     // Key not found anywhere - raise exception with helpful message
     raise EDotEnvMissingKey.CreateFmt('Required environment variable not found: %s', [AKey]);
+end;
+
+(*
+  GetOrPrompt - Get value or prompt user if missing
+  -------------------------------------------------------------------------
+  This method is useful for interactive setup scripts or first-run
+  configuration. If the key already exists, it returns the value.
+  If the key is missing, it prompts the user to enter a value.
+
+  The entered value is stored in memory but NOT automatically saved
+  to a file. Use Save() if you want to persist the value.
+
+  Example:
+    DbUrl := Env.GetOrPrompt('DATABASE_URL',
+                             'Enter database URL',
+                             'postgres://localhost/mydb');
+*)
+function TDotEnv.GetOrPrompt(const AKey, APrompt: string; const ADefault: string): string;
+var
+  UserInput: string;
+begin
+  // Check if key already exists
+  Result := Get(AKey, '');
+  if Result <> '' then
+    Exit;  // Key exists, return its value
+
+  // Key missing - prompt user
+  Write(APrompt);
+  if ADefault <> '' then
+    Write(' [', ADefault, ']');
+  Write(': ');
+  ReadLn(UserInput);
+
+  // Use default if user just pressed Enter
+  UserInput := Trim(UserInput);
+  if UserInput = '' then
+    UserInput := ADefault;
+
+  // Store the value
+  SetToEnv(AKey, UserInput);
+  Result := UserInput;
 end;
 
 function TDotEnv.GetInt(const AKey: string; const ADefault: Integer): Integer;
@@ -1575,6 +1710,162 @@ begin
   Result := SysUtils.GetEnvironmentVariable(AKey);
   if Result = '' then
     Result := ADefault;
+end;
+
+(* =========================================================================
+   FILE OPERATIONS - Save and generate .env files
+   ========================================================================= *)
+
+(*
+  Save - Save all loaded key-value pairs to a .env file
+  -------------------------------------------------------------------------
+  Writes all loaded environment variables to a file in KEY=value format.
+  Useful for generating configuration files or persisting runtime changes.
+
+  Note: Values are written unquoted. If a value contains special characters
+  like spaces or #, you may want to manually quote them after generation.
+
+  Example:
+    Env.SetToEnv('DATABASE_URL', 'postgres://localhost/mydb');
+    Env.SetToEnv('PORT', '3000');
+    Env.Save('.env');
+*)
+function TDotEnv.Save(const APath: string): Boolean;
+var
+  Lines: TStringList;
+  I: Integer;
+  Pair: TDotEnvPair;
+begin
+  Result := False;
+  Lines := TStringList.Create;
+  try
+    // Build the content
+    for I := 0 to FValues.Count - 1 do
+    begin
+      Pair := FValues.GetPair(I);
+      Lines.Add(Pair.Key + '=' + Pair.Value);
+    end;
+
+    // Save to file
+    try
+      Lines.SaveToFile(APath);
+      Result := True;
+
+      if FOptions.Verbose then
+        WriteLn('DotEnv: Saved ', FValues.Count, ' variables to ', APath);
+    except
+      on E: Exception do
+      begin
+        if FOptions.Verbose then
+          WriteLn('DotEnv: Error saving to ', APath, ': ', E.Message);
+        Result := False;
+      end;
+    end;
+  finally
+    Lines.Free;
+  end;
+end;
+
+(*
+  GenerateExample - Create a .env.example file from a source .env file
+  -------------------------------------------------------------------------
+  Reads a .env file and creates an example file with the same keys but
+  empty values. This is useful for:
+  - Version control (commit .env.example, not .env)
+  - Documentation (shows what config is needed)
+  - Team onboarding (developers copy .env.example to .env)
+
+  The generated file preserves:
+  - All key names
+  - Comments (lines starting with #)
+  - Empty lines
+  - Structure/organization
+
+  Values are replaced with empty strings.
+
+  Example:
+    Input (.env):
+      # Database config
+      DATABASE_URL=postgres://localhost/mydb
+      PORT=3000
+
+    Output (.env.example):
+      # Database config
+      DATABASE_URL=
+      PORT=
+*)
+function TDotEnv.GenerateExample(const ASourcePath: string; const ADestPath: string): Boolean;
+var
+  SourceLines, DestLines: TStringList;
+  I, EqPos: Integer;
+  Line, TrimmedLine, Key: string;
+begin
+  Result := False;
+
+  // Check if source file exists
+  if not FileExists(ASourcePath) then
+  begin
+    if FOptions.Verbose then
+      WriteLn('DotEnv: Source file not found: ', ASourcePath);
+    Exit;
+  end;
+
+  SourceLines := TStringList.Create;
+  DestLines := TStringList.Create;
+  try
+    SourceLines.LoadFromFile(ASourcePath);
+
+    // Process each line
+    for I := 0 to SourceLines.Count - 1 do
+    begin
+      Line := SourceLines[I];
+      TrimmedLine := Trim(Line);
+
+      // Preserve empty lines and comments
+      if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
+      begin
+        DestLines.Add(Line);
+        Continue;
+      end;
+
+      // Handle 'export' prefix
+      if AnsiStartsStr('export ', TrimmedLine) then
+        TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
+
+      // Find the = sign
+      EqPos := Pos('=', TrimmedLine);
+      if EqPos > 0 then
+      begin
+        // Extract key and write with empty value
+        Key := Trim(Copy(TrimmedLine, 1, EqPos - 1));
+        if Key <> '' then
+          DestLines.Add(Key + '=')
+        else
+          DestLines.Add(Line);  // Invalid line, preserve as-is
+      end
+      else
+        DestLines.Add(Line);  // No = sign, preserve as-is
+    end;
+
+    // Save to destination file
+    try
+      DestLines.SaveToFile(ADestPath);
+      Result := True;
+
+      if FOptions.Verbose then
+        WriteLn('DotEnv: Generated example file: ', ADestPath);
+    except
+      on E: Exception do
+      begin
+        if FOptions.Verbose then
+          WriteLn('DotEnv: Error saving example file: ', E.Message);
+        Result := False;
+      end;
+    end;
+  finally
+    SourceLines.Free;
+    DestLines.Free;
+  end;
 end;
 
 (*

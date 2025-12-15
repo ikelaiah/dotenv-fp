@@ -9,7 +9,7 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 [![Lazarus](https://img.shields.io/badge/Lazarus-4.0+-60A5FA.svg)](https://www.lazarus-ide.org/)
 ![Supports Windows](https://img.shields.io/badge/support-Windows-F59E0B?logo=Windows)
 ![Supports Linux](https://img.shields.io/badge/support-Linux-F59E0B?logo=Linux)
-[![Version](https://img.shields.io/badge/version-1.0.0-8B5CF6.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-8B5CF6.svg)](CHANGELOG.md)
 ![No Dependencies](https://img.shields.io/badge/dependencies-none-10B981.svg)
 [![Documentation](https://img.shields.io/badge/Docs-Available-brightgreen.svg)](docs/)
 [![Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)]()
@@ -28,6 +28,10 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 | ⚡ **Default values** | Fallback values when keys are missing |
 | ✅ **Validation** | Check for required variables before running |
 | 📚 **Multiple files** | Load `.env`, `.env.local`, `.env.production`, etc. |
+| 🌍 **Environment-aware** | Auto-load `.env.{environment}` files (v1.1.0+) |
+| 💾 **Save to file** | Generate `.env` files programmatically (v1.1.0+) |
+| 📋 **Generate examples** | Create `.env.example` for version control (v1.1.0+) |
+| 💬 **Interactive prompts** | `GetOrPrompt()` for first-run setup (v1.1.0+) |
 | 🏷️ **Key prefixing** | Add prefixes like `APP_` to all loaded keys |
 | 🧹 **Zero memory leaks** | Uses advanced records — no manual `Free` calls! |
 | 📦 **Zero dependencies** | Only standard FPC units |
@@ -146,9 +150,13 @@ begin
   
   // 🔵 Load multiple files (later files override earlier ones)
   Env.LoadMultiple(['.env', '.env.local', '.env.development']);
-  
+
   // 🟣 Load from string (great for testing!)
   Env.LoadFromString('KEY=value' + LineEnding + 'OTHER=test');
+
+  // 🌍 NEW in v1.1.0: Environment-aware loading
+  Env.LoadForEnvironment('production');   // Loads .env + .env.production
+  Env.LoadForEnvironment();               // Auto-detects from APP_ENV or NODE_ENV
 end;
 ```
 
@@ -178,6 +186,12 @@ Env.GetFloatRequired('RATE');      // Raises exception if missing/invalid
 // 📋 Arrays (splits comma-separated values)
 Hosts := Env.GetArray('ALLOWED_HOSTS');        // Split by comma
 Tags := Env.GetArray('TAGS', ';');             // Split by semicolon
+
+// 💬 NEW in v1.1.0: Interactive prompts (for setup scripts)
+DbUrl := Env.GetOrPrompt('DATABASE_URL',
+                        'Enter database URL',
+                        'postgres://localhost/mydb');
+// Prompts user if DATABASE_URL is missing, uses existing value if present
 ```
 
 ### Validation
@@ -223,6 +237,38 @@ WriteLn(Env.ToString);
 // 📁 See which files were loaded
 for I := 0 to High(Env.LoadedFiles) do
   WriteLn('Loaded: ', Env.LoadedFiles[I]);
+```
+
+### File Operations (v1.1.0+)
+
+```pascal
+// 💾 Save environment variables to a file
+Env := TDotEnv.Create;
+Env.SetToEnv('DATABASE_URL', 'postgres://localhost/mydb');
+Env.SetToEnv('PORT', '3000');
+Env.SetToEnv('DEBUG', 'true');
+Env.Save('.env');  // Writes to .env file
+
+// 📋 Generate .env.example for version control
+Env.Load('.env');
+Env.GenerateExample('.env', '.env.example');
+// Creates .env.example with keys but empty values
+
+// 🌍 Environment-aware loading pattern
+Env := TDotEnv.Create;
+Env.LoadForEnvironment('development');   // Loads .env + .env.development
+Env.LoadForEnvironment('production');    // Loads .env + .env.production
+Env.LoadForEnvironment();                // Auto-detects from APP_ENV/NODE_ENV
+
+// 💬 Interactive setup script example
+Env := TDotEnv.Create;
+Env.Load('.env');  // Try to load existing config
+DbUrl := Env.GetOrPrompt('DATABASE_URL',
+                        'Enter database URL',
+                        'postgres://localhost/mydb');
+Port := Env.GetOrPrompt('PORT', 'Enter port', '3000');
+Env.Save('.env');  // Save the configuration
+WriteLn('Configuration saved!');
 ```
 
 ### Global Helpers (Simple API)
