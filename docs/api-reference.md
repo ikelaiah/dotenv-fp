@@ -40,6 +40,16 @@ Array of strings (used for `GetArray`, `Keys`, `Values`, etc.). This type is pro
 TStringDynArray = array of AnsiString;
 ```
 
+### TDotEnvValueKind and TDotEnvSchemaItem
+
+`TDotEnvSchemaItem` describes a required value for aggregate validation.
+
+```pascal
+TDotEnvValueKind = (dvkString, dvkInteger, dvkBoolean, dvkFloat);
+
+Rule := TDotEnvSchemaItem.Create('PORT', dvkInteger);
+```
+
 ## TDotEnv Record
 
 The main record for loading and accessing environment variables.
@@ -106,6 +116,18 @@ Env.Load('.env.local');      // Load specific file
 Env.Load('config/.env');     // Load from subdirectory
 ```
 
+#### `LoadRequired`
+
+Strictly loads a file and reports an absolute path, line number, offending key
+or entry, and reason when loading fails. Existing `Load` behavior remains
+permissive and backward compatible.
+
+```pascal
+function LoadRequired(const APath: string = '.env'): Boolean;
+```
+
+**Raises:** `EDotEnvFileNotFound`, `EDotEnvParseError`, or `EDotEnvException`
+
 #### `LoadFromStream`
 
 Loads environment variables from a stream.
@@ -154,6 +176,15 @@ function LoadMultiple(const APaths: array of string): Boolean;
 Env.LoadMultiple(['.env', '.env.local', '.env.development']);
 ```
 
+#### `LoadForEnvironment`
+
+Loads `.env`, followed by `.env.{environment}`. If the argument is empty, the
+environment is read from `APP_ENV`, then `NODE_ENV`.
+
+```pascal
+function LoadForEnvironment(const AEnvironment: string = ''): Boolean;
+```
+
 ### String Getters
 
 #### `Get`
@@ -179,6 +210,16 @@ function GetRequired(const AKey: string): string;
 ```
 
 **Raises:** `EDotEnvMissingKey` if key doesn't exist
+
+#### `GetOrPrompt`
+
+Returns an existing value or interactively prompts for it and stores the
+answer in memory. Call `Save` to persist it.
+
+```pascal
+function GetOrPrompt(const AKey, APrompt: string;
+  const ADefault: string = ''): string;
+```
 
 ### Integer Getters
 
@@ -233,6 +274,8 @@ Gets a required boolean value.
 ```pascal
 function GetBoolRequired(const AKey: string): Boolean;
 ```
+
+**Raises:** `EDotEnvMissingKey` or `EDotEnvParseError`
 
 ### Float Getters
 
@@ -321,10 +364,20 @@ function Count: Integer;
 
 #### `ToString`
 
-Returns a debug string of all loaded variables.
+Returns all loaded variables, including secrets. Do not write this value to
+logs; prefer `ToRedactedString`.
 
 ```pascal
 function ToString: string;
+```
+
+#### `ToRedactedString`
+
+Returns debug output with common password, secret, token, credential, private
+key, and API key values replaced by `[REDACTED]`.
+
+```pascal
+function ToRedactedString: string;
 ```
 
 #### `LoadedFiles`
@@ -366,11 +419,29 @@ for I := 0 to High(Missing) do
   WriteLn('Missing: ', Missing[I]);
 ```
 
+#### `ValidateSchema`
+
+Checks all required keys and types, returning every problem together.
+
+```pascal
+function ValidateSchema(const ASchema: array of TDotEnvSchemaItem;
+  out AErrors: TStringDynArray): Boolean;
+```
+
+#### `ValidateSchemaRequired`
+
+Raises one `EDotEnvValidationError` containing every missing or incorrectly
+typed value.
+
+```pascal
+procedure ValidateSchemaRequired(const ASchema: array of TDotEnvSchemaItem);
+```
+
 ### Environment Methods
 
 #### `SetToEnv`
 
-Sets a value in the system environment.
+Sets a value in this `TDotEnv` instance. It does not modify the OS environment.
 
 ```pascal
 procedure SetToEnv(const AKey, AValue: string);
@@ -382,6 +453,27 @@ Gets a value directly from system environment.
 
 ```pascal
 function GetFromEnv(const AKey: string; const ADefault: string = ''): string;
+```
+
+### File Methods
+
+#### `Save`
+
+Safely quotes and escapes all values, writes a same-directory temporary file,
+then atomically replaces the destination.
+
+```pascal
+function Save(const APath: string = '.env'): Boolean;
+```
+
+#### `GenerateExample`
+
+Creates an example file that retains keys, comments, and layout while removing
+values.
+
+```pascal
+function GenerateExample(const ASourcePath: string = '.env';
+  const ADestPath: string = '.env.example'): Boolean;
 ```
 
 ### Properties
@@ -401,8 +493,8 @@ Configuration options for loading.
 |-------|------|---------|-------------|
 | `Override` | `Boolean` | `False` | Override existing environment variables |
 | `Interpolate` | `Boolean` | `True` | Enable `${VAR}` interpolation |
-| `Encoding` | `string` | `'UTF-8'` | File encoding |
-| `Verbose` | `Boolean` | `False` | Print debug information |
+| `Encoding` | `string` | `'UTF-8'` | Reserved and currently ignored; use UTF-8 files |
+| `Verbose` | `Boolean` | `False` | Print debug information with likely secrets redacted |
 | `Prefix` | `string` | `''` | Prefix for all loaded keys |
 
 ### Methods
@@ -473,7 +565,8 @@ end;
 
 ### EDotEnvParseError
 
-Raised when a value cannot be parsed to the requested type.
+Raised when strict loading finds malformed syntax or a value cannot be parsed
+to the requested type.
 
 ```pascal
 try
@@ -486,4 +579,8 @@ end;
 
 ### EDotEnvFileNotFound
 
-Raised when a file cannot be found (if strict mode enabled).
+Raised when `LoadRequired` cannot find a file.
+
+### EDotEnvValidationError
+
+Raised by `ValidateSchemaRequired` with all missing and invalid values.

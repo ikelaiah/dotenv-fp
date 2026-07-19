@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.2.0] - 2026-07-20
+
+### Added
+
+- `LoadRequired()` for strict loading with absolute file paths, line numbers,
+  offending keys or entries, and actionable failure reasons
+- Aggregate typed validation with `TDotEnvSchemaItem`, `ValidateSchema()`, and
+  `ValidateSchemaRequired()`
+- `ToRedactedString()` for safer diagnostic output
+- Five-minute `hello-dotenv` example and root `.env.example`
+- Windows and Linux CI for tests, examples, and the Lazarus package
+
+### Changed
+
+- `Save()` now quotes and escapes every value and atomically replaces its
+  destination through a same-directory temporary file
+- `GetBoolRequired()` now rejects values that are not recognized booleans
+- Single-quoted values are treated as literals and do not interpolate
+- Verbose loading redacts likely secret values
+- Documentation now distinguishes in-memory values from OS environment values
+
+### Fixed
+
+- Values containing spaces, `#`, quotes, backslashes, control characters, or
+  interpolation-like text now survive a save/load round trip
+- Multiline double-quoted values no longer truncate at escaped quotes
+- Newcomer example keys are namespaced to avoid common OS environment collisions
+- Test commands, test counts, package version metadata, API reference coverage,
+  and `.env` ignore guidance
+
 ## [1.1.0] - 2025-12-16
 
 ### Added
@@ -43,4 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite
 - Documentation and examples
 
+[Unreleased]: https://github.com/ikelaiah/dotenv-fp/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ikelaiah/dotenv-fp/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/ikelaiah/dotenv-fp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ikelaiah/dotenv-fp/releases/tag/v1.0.0

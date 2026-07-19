@@ -24,9 +24,9 @@ end;
 |--------|------|---------|-------------|
 | `Override` | `Boolean` | `False` | Override existing system environment variables |
 | `Interpolate` | `Boolean` | `True` | Enable `${VAR}` variable interpolation |
-| `Verbose` | `Boolean` | `False` | Print debug information while loading |
+| `Verbose` | `Boolean` | `False` | Print debug information with likely secrets redacted |
 | `Prefix` | `String` | `''` | Add prefix to all loaded key names |
-| `Encoding` | `String` | `'UTF-8'` | File encoding |
+| `Encoding` | `String` | `'UTF-8'` | Reserved and currently ignored; use UTF-8 files |
 
 ## Override
 
@@ -80,15 +80,15 @@ WriteLn(Env.Get('API_ENDPOINT'));  // '${BASE_URL}/v1/users' (literal)
 
 **Default:** `False`
 
-When `True`, prints debug information during loading. Useful for troubleshooting.
+When `True`, prints debug information during loading. Values for likely secret
+keys are replaced by `[REDACTED]`.
 
 ```pascal
 Options.Verbose := True;
 Env.Load;
 // Outputs:
-// Loading: .env
-// Parsed: DATABASE_URL = postgresql://localhost/mydb
-// Parsed: PORT = 3000
+// DotEnv: Loaded DATABASE_PASSWORD=[REDACTED]
+// DotEnv: Loaded PORT=3000
 // ...
 ```
 
@@ -167,9 +167,12 @@ Env.LoadMultiple([
 ```
 
 **Recommended `.gitignore`:**
-```
-.env.local
-.env.*.local
+```gitignore
+.env
+.env.*
+!.env.example
+!.env.*.example
 ```
 
-This keeps sensitive local settings out of version control while sharing safe defaults.
+This keeps local settings out of version control while allowing explicit
+`.example` templates.
