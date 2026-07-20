@@ -1031,6 +1031,11 @@ function TDotEnv.ExpandVariable(const AVarName: string): string;
 var
   Idx: Integer;
 begin
+  // Never query the OS with an empty name. On Windows, Free Pascal may return
+  // a hidden drive-current-directory entry such as "::=::\" for ${}.
+  if AVarName = '' then
+    Exit('');
+
   (* First check our loaded values - allows ${VAR} to reference
      variables defined earlier in the same .env file *)
   Idx := FValues.Find(AVarName);
