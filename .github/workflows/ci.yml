@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.os }} / FPC 3.2.2
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Lazarus and FPC
+        uses: gcarreno/setup-lazarus@v3.4.1
+        with:
+          lazarus-version: "4.0"
+
+      - name: Build Lazarus package
+        run: lazbuild --build-all packages/lazarus/dotenv_fp.lpk
+
+      - name: Build tests using the documented FPC command
+        working-directory: tests
+        run: fpc -B "-Fu../src" "-FU." TestRunner.pas
+
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
+        working-directory: tests
+        run: ./TestRunner -a --format=plain
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        working-directory: tests
+        run: .\TestRunner.exe -a --format=plain
+
+      - name: Build all examples
+        run: |
+          lazbuild --build-mode=Release examples/hello-dotenv/hello_dotenv.lpi
+          lazbuild --build-mode=Release examples/basic/basic_example.lpi
+          lazbuild --build-mode=Release examples/advanced/advanced_example.lpi
+          lazbuild --build-mode=Release examples/environment-aware/environment_example.lpi
+          lazbuild --build-mode=Release examples/interactive-setup/setup_example.lpi
+
+      - name: Smoke-test newcomer example (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cp .env.example .env
+          PORT=not-an-integer DEBUG=release ./examples/hello-dotenv/hello_dotenv
+
+      - name: Smoke-test newcomer example (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item .env.example .env
+          $env:PORT = 'not-an-integer'
+          $env:DEBUG = 'release'
+          .\examples\hello-dotenv\hello_dotenv.exe

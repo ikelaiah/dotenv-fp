@@ -123,6 +123,25 @@ type
     procedure Test102_GetOrPrompt_ExistingValue;
     procedure Test103_GenerateExample_PreservesStructure;
     procedure Test104_GenerateExample_RemovesValues;
+
+    // v1.2.0 onboarding and reliability features
+    procedure Test105_LoadRequired_MissingFileHasAbsolutePath;
+    procedure Test106_LoadRequired_MalformedLineHasLocation;
+    procedure Test107_LoadRequired_InvalidKeyHasReason;
+    procedure Test108_LoadRequired_UnterminatedQuoteHasKey;
+    procedure Test109_Load_RemainsPermissive;
+    procedure Test110_ValidateSchema_ReturnsAllErrors;
+    procedure Test111_ValidateSchema_ValidConfiguration;
+    procedure Test112_GetBoolRequired_RejectsInvalidValue;
+    procedure Test113_Save_RoundTripsSpecialValues;
+    procedure Test114_Save_ReplacesFileAndCleansTemp;
+    procedure Test115_ToRedactedString_HidesSecrets;
+    procedure Test116_ToRedactedString_ShowsOrdinaryValues;
+    procedure Test117_SingleQuotedValue_DoesNotInterpolate;
+    procedure Test118_LoadRequired_MultilineEscapedQuote;
+    procedure Test119_LoadFromString_MultilineEscapedQuote;
+    procedure Test120_ValidateSchemaRequired_ReturnsAllErrors;
+    procedure Test121_VerboseMode_RedactsSecrets;
   end;
 
 implementation
@@ -1165,6 +1184,369 @@ begin
       DeleteFile(SourceFile);
     if FileExists(ExampleFile) then
       DeleteFile(ExampleFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test105_LoadRequired_MissingFileHasAbsolutePath;
+const
+  MissingFile = 'definitely_missing_v120.env';
+var
+  Raised: Boolean;
+  ErrorMessage: string;
+begin
+  Raised := False;
+  try
+    FEnv.LoadRequired(MissingFile);
+  except
+    on E: EDotEnvFileNotFound do
+    begin
+      Raised := True;
+      ErrorMessage := E.Message;
+    end;
+  end;
+  CheckTrue(Raised, 'LoadRequired raises for a missing file');
+  CheckTrue(Pos(ExpandFileName(MissingFile), ErrorMessage) > 0,
+    'Error contains the absolute path');
+end;
+
+procedure TTestDotEnv.Test106_LoadRequired_MalformedLineHasLocation;
+const
+  TestFile = 'test_strict_malformed.env';
+var
+  EnvFile: TextFile;
+  Raised: Boolean;
+  ErrorMessage: string;
+begin
+  AssignFile(EnvFile, TestFile);
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'VALID=value');
+  WriteLn(EnvFile, 'BROKEN_LINE');
+  CloseFile(EnvFile);
+  try
+    Raised := False;
+    try
+      FEnv.LoadRequired(TestFile);
+    except
+      on E: EDotEnvParseError do
+      begin
+        Raised := True;
+        ErrorMessage := E.Message;
+      end;
+    end;
+    CheckTrue(Raised, 'Malformed line raises');
+    CheckTrue(Pos(ExpandFileName(TestFile) + ':2', ErrorMessage) > 0,
+      'Error contains absolute file and line');
+    CheckTrue(Pos('BROKEN_LINE', ErrorMessage) > 0,
+      'Error contains offending entry');
+  finally
+    DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test107_LoadRequired_InvalidKeyHasReason;
+const
+  TestFile = 'test_strict_key.env';
+var
+  EnvFile: TextFile;
+  ErrorMessage: string;
+begin
+  AssignFile(EnvFile, TestFile);
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, '9INVALID=value');
+  CloseFile(EnvFile);
+  try
+    try
+      FEnv.LoadRequired(TestFile);
+      Fail('Expected invalid key exception');
+    except
+      on E: EDotEnvParseError do
+        ErrorMessage := E.Message;
+    end;
+    CheckTrue(Pos('9INVALID', ErrorMessage) > 0, 'Error contains key');
+    CheckTrue(Pos('first character', ErrorMessage) > 0, 'Error explains rule');
+  finally
+    DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test108_LoadRequired_UnterminatedQuoteHasKey;
+const
+  TestFile = 'test_strict_quote.env';
+var
+  EnvFile: TextFile;
+  ErrorMessage: string;
+begin
+  AssignFile(EnvFile, TestFile);
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'SECRET_KEY="never closed');
+  CloseFile(EnvFile);
+  try
+    try
+      FEnv.LoadRequired(TestFile);
+      Fail('Expected unterminated quote exception');
+    except
+      on E: EDotEnvParseError do
+        ErrorMessage := E.Message;
+    end;
+    CheckTrue(Pos('SECRET_KEY', ErrorMessage) > 0, 'Error contains key');
+    CheckTrue(Pos('unterminated', ErrorMessage) > 0, 'Error contains reason');
+  finally
+    DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test109_Load_RemainsPermissive;
+const
+  TestFile = 'test_permissive.env';
+var
+  EnvFile: TextFile;
+begin
+  AssignFile(EnvFile, TestFile);
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'BROKEN_LINE');
+  WriteLn(EnvFile, 'VALID=still_loaded');
+  CloseFile(EnvFile);
+  try
+    CheckTrue(FEnv.Load(TestFile), 'Legacy Load still succeeds');
+    CheckEquals('still_loaded', FEnv.Get('VALID'), 'Valid lines still load');
+  finally
+    DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test110_ValidateSchema_ReturnsAllErrors;
+var
+  Errors: TStringDynArray;
+begin
+  FEnv.LoadFromString(
+    'PORT=abc' + LineEnding +
+    'DEBUG=perhaps' + LineEnding +
+    'RATE=not-a-number');
+  CheckFalse(FEnv.ValidateSchema([
+    TDotEnvSchemaItem.Create('DATABASE_URL'),
+    TDotEnvSchemaItem.Create('PORT', dvkInteger),
+    TDotEnvSchemaItem.Create('DEBUG', dvkBoolean),
+    TDotEnvSchemaItem.Create('RATE', dvkFloat)
+  ], Errors), 'Invalid schema returns False');
+  CheckEquals(4, Length(Errors), 'All errors are returned together');
+  CheckTrue(Pos('DATABASE_URL', Errors[0]) > 0, 'Missing key reported');
+  CheckTrue(Pos('PORT', Errors[1]) > 0, 'Integer error reported');
+  CheckTrue(Pos('DEBUG', Errors[2]) > 0, 'Boolean error reported');
+  CheckTrue(Pos('RATE', Errors[3]) > 0, 'Float error reported');
+end;
+
+procedure TTestDotEnv.Test111_ValidateSchema_ValidConfiguration;
+var
+  Errors: TStringDynArray;
+begin
+  FEnv.LoadFromString(
+    'DATABASE_URL=sqlite://local.db' + LineEnding +
+    'PORT=3000' + LineEnding +
+    'DEBUG=false' + LineEnding +
+    'RATE=1.5');
+  CheckTrue(FEnv.ValidateSchema([
+    TDotEnvSchemaItem.Create('DATABASE_URL'),
+    TDotEnvSchemaItem.Create('PORT', dvkInteger),
+    TDotEnvSchemaItem.Create('DEBUG', dvkBoolean),
+    TDotEnvSchemaItem.Create('RATE', dvkFloat)
+  ], Errors), 'Valid schema returns True');
+  CheckEquals(0, Length(Errors), 'No validation errors');
+end;
+
+procedure TTestDotEnv.Test112_GetBoolRequired_RejectsInvalidValue;
+begin
+  FEnv.LoadFromString('DEBUG=perhaps');
+  try
+    FEnv.GetBoolRequired('DEBUG');
+    Fail('Expected boolean parse exception');
+  except
+    on E: EDotEnvParseError do
+      CheckTrue(Pos('DEBUG', E.Message) > 0, 'Error contains key');
+  end;
+end;
+
+procedure TTestDotEnv.Test113_Save_RoundTripsSpecialValues;
+const
+  TestFile = 'test_save_special.env';
+var
+  Env2: TDotEnv;
+  SpecialValue: string;
+begin
+  SpecialValue := ' leading # "quoted" \ path ' + #9 + #10 + #13 +
+    '${DO_NOT_EXPAND} $PATH and ''single quotes'' ';
+  FEnv.SetToEnv('SPECIAL', SpecialValue);
+  FEnv.SetToEnv('EMPTY', '');
+  try
+    CheckTrue(FEnv.Save(TestFile), 'Special values save');
+    Env2 := TDotEnv.Create;
+    CheckTrue(Env2.LoadRequired(TestFile), 'Saved file loads strictly');
+    CheckEquals(SpecialValue, Env2.Get('SPECIAL'), 'Special value round-trips');
+    CheckEquals('', Env2.Get('EMPTY'), 'Empty value round-trips');
+  finally
+    DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test114_Save_ReplacesFileAndCleansTemp;
+const
+  TestFile = 'test_save_replace.env';
+var
+  EnvFile: TextFile;
+  Env2: TDotEnv;
+begin
+  AssignFile(EnvFile, TestFile);
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'OLD=value');
+  CloseFile(EnvFile);
+  try
+    FEnv.SetToEnv('NEW', 'replacement');
+    CheckTrue(FEnv.Save(TestFile), 'Existing file replaced');
+    CheckFalse(FileExists(ExpandFileName(TestFile) + '.tmp'),
+      'Temporary file cleaned');
+    Env2 := TDotEnv.Create;
+    Env2.LoadRequired(TestFile);
+    CheckEquals('replacement', Env2.Get('NEW'), 'Replacement content loaded');
+    CheckFalse(Env2.Has('OLD'), 'Old content removed');
+  finally
+    DeleteFile(TestFile);
+    if FileExists(ExpandFileName(TestFile) + '.tmp') then
+      DeleteFile(ExpandFileName(TestFile) + '.tmp');
+  end;
+end;
+
+procedure TTestDotEnv.Test115_ToRedactedString_HidesSecrets;
+var
+  Output: string;
+begin
+  FEnv.SetToEnv('DATABASE_PASSWORD', 'do-not-print');
+  FEnv.SetToEnv('API_TOKEN', 'token-value');
+  FEnv.SetToEnv('SERVICE_API_KEY', 'key-value');
+  Output := FEnv.ToRedactedString;
+  CheckTrue(Pos('DATABASE_PASSWORD=[REDACTED]', Output) > 0, 'Password redacted');
+  CheckTrue(Pos('API_TOKEN=[REDACTED]', Output) > 0, 'Token redacted');
+  CheckTrue(Pos('SERVICE_API_KEY=[REDACTED]', Output) > 0, 'API key redacted');
+  CheckTrue(Pos('do-not-print', Output) = 0, 'Secret value absent');
+end;
+
+procedure TTestDotEnv.Test116_ToRedactedString_ShowsOrdinaryValues;
+begin
+  FEnv.SetToEnv('PORT', '3000');
+  CheckTrue(Pos('PORT=3000', FEnv.ToRedactedString) > 0,
+    'Ordinary values remain useful for debugging');
+end;
+
+procedure TTestDotEnv.Test117_SingleQuotedValue_DoesNotInterpolate;
+begin
+  FEnv.LoadFromString(
+    'BASE=expanded' + LineEnding +
+    'LITERAL=''${BASE}''');
+  CheckEquals('${BASE}', FEnv.Get('LITERAL'),
+    'Single-quoted values remain literal');
+end;
+
+procedure TTestDotEnv.Test118_LoadRequired_MultilineEscapedQuote;
+const
+  TestFile = 'test_multiline_escaped_quote.env';
+var
+  EnvFile: TextFile;
+begin
+  AssignFile(EnvFile, TestFile);
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'VALUE="first \"quoted text');
+  WriteLn(EnvFile, 'second line"');
+  WriteLn(EnvFile, 'NEXT=kept');
+  CloseFile(EnvFile);
+  try
+    CheckTrue(FEnv.LoadRequired(TestFile), 'Strict multiline file loads');
+    CheckEquals('first "quoted text' + #10 + 'second line',
+      FEnv.Get('VALUE'), 'Escaped quote does not truncate multiline value');
+    CheckEquals('kept', FEnv.Get('NEXT'), 'Parsing resumes after multiline value');
+  finally
+    DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test119_LoadFromString_MultilineEscapedQuote;
+begin
+  FEnv.LoadFromString(
+    'VALUE="first \"quoted text' + LineEnding +
+    'second line"' + LineEnding +
+    'NEXT=kept');
+  CheckEquals('first "quoted text' + #10 + 'second line',
+    FEnv.Get('VALUE'), 'String loading preserves escaped multiline quotes');
+  CheckEquals('kept', FEnv.Get('NEXT'), 'String parsing resumes after value');
+end;
+
+procedure TTestDotEnv.Test120_ValidateSchemaRequired_ReturnsAllErrors;
+var
+  ErrorMessage: string;
+begin
+  FEnv.LoadFromString(
+    'PORT=not-an-integer' + LineEnding +
+    'DEBUG=perhaps');
+  try
+    FEnv.ValidateSchemaRequired([
+      TDotEnvSchemaItem.Create('DATABASE_URL'),
+      TDotEnvSchemaItem.Create('PORT', dvkInteger),
+      TDotEnvSchemaItem.Create('DEBUG', dvkBoolean)
+    ]);
+    Fail('Expected aggregate validation exception');
+  except
+    on E: EDotEnvValidationError do
+      ErrorMessage := E.Message;
+  end;
+  CheckTrue(Pos('DATABASE_URL', ErrorMessage) > 0, 'Missing key is reported');
+  CheckTrue(Pos('PORT', ErrorMessage) > 0, 'Invalid integer is reported');
+  CheckTrue(Pos('DEBUG', ErrorMessage) > 0, 'Invalid boolean is reported');
+end;
+
+procedure TTestDotEnv.Test121_VerboseMode_RedactsSecrets;
+const
+  TestFile = 'test_verbose_redaction.env';
+  CaptureFile = 'test_verbose_redaction.txt';
+var
+  EnvFile: TextFile;
+  Options: TDotEnvOptions;
+  Captured: TStringList;
+begin
+  AssignFile(EnvFile, TestFile);
+  Rewrite(EnvFile);
+  WriteLn(EnvFile, 'DOTENV_TEST_PASSWORD=do-not-print');
+  WriteLn(EnvFile, 'DOTENV_TEST_PORT=3000');
+  CloseFile(EnvFile);
+
+  Options := TDotEnvOptions.Default;
+  Options.Verbose := True;
+  FEnv := TDotEnv.CreateWithOptions(Options);
+  try
+    AssignFile(Output, CaptureFile);
+    Rewrite(Output);
+    try
+      CheckTrue(FEnv.Load(TestFile), 'Verbose fixture loads');
+      Flush(Output);
+    finally
+      CloseFile(Output);
+      AssignFile(Output, '');
+      Rewrite(Output);
+    end;
+
+    Captured := TStringList.Create;
+    try
+      Captured.LoadFromFile(CaptureFile);
+      CheckTrue(Pos('DOTENV_TEST_PASSWORD=[REDACTED]', Captured.Text) > 0,
+        'Verbose output redacts password values');
+      CheckTrue(Pos('do-not-print', Captured.Text) = 0,
+        'Verbose output does not contain the secret');
+      CheckTrue(Pos('DOTENV_TEST_PORT=3000', Captured.Text) > 0,
+        'Verbose output retains ordinary diagnostic values');
+    finally
+      Captured.Free;
+    end;
+  finally
+    if FileExists(TestFile) then
+      DeleteFile(TestFile);
+    if FileExists(CaptureFile) then
+      DeleteFile(CaptureFile);
   end;
 end;
 

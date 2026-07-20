@@ -14,6 +14,7 @@
 *.lps
 backup/
 lib/
+packagefiles.xml
 
 # Binary executables
 *.exe
@@ -27,6 +28,12 @@ test_dir/
 *.~*
 *.tmp
 
+# Local environment files may contain secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
 # OS-specific files
 .DS_Store
 .DS_Store?
@@ -34,4 +41,4 @@ test_dir/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db

@@ -9,7 +9,7 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 [![Lazarus](https://img.shields.io/badge/Lazarus-4.0+-60A5FA.svg)](https://www.lazarus-ide.org/)
 ![Supports Windows](https://img.shields.io/badge/support-Windows-F59E0B?logo=Windows)
 ![Supports Linux](https://img.shields.io/badge/support-Linux-F59E0B?logo=Linux)
-[![Version](https://img.shields.io/badge/version-1.1.0-8B5CF6.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.0-8B5CF6.svg)](CHANGELOG.md)
 ![No Dependencies](https://img.shields.io/badge/dependencies-none-10B981.svg)
 [![Documentation](https://img.shields.io/badge/Docs-Available-brightgreen.svg)](docs/)
 [![Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)]()
@@ -32,63 +32,54 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 | 💾 **Save to file** | Generate `.env` files programmatically (v1.1.0+) |
 | 📋 **Generate examples** | Create `.env.example` for version control (v1.1.0+) |
 | 💬 **Interactive prompts** | `GetOrPrompt()` for first-run setup (v1.1.0+) |
+| 🚨 **Strict loading** | Actionable file, line, key, and reason diagnostics (v1.2.0+) |
+| 🧭 **Typed schema validation** | Report all missing and invalid values together (v1.2.0+) |
+| 🛡️ **Safe serialization** | Atomic, escaped, load/save round trips (v1.2.0+) |
 | 🏷️ **Key prefixing** | Add prefixes like `APP_` to all loaded keys |
 | 🧹 **Zero memory leaks** | Uses advanced records — no manual `Free` calls! |
 | 📦 **Zero dependencies** | Only standard FPC units |
 
 ## 🚀 Quick Start
 
-### Installation
-
-1. Copy `src/DotEnv.pas` to your project  
-   *— or add the `src` folder to your unit search path*
-2. Add `DotEnv` to your `uses` clause
-
-That's it! No package manager needed. 🎉
-
-### Your First `.env` File
-
-Create a `.env` file in your project root:
+From the repository root, create your local configuration:
 
 ```bash
-# Database settings
-DATABASE_URL=postgresql://localhost/mydb
-DB_POOL_SIZE=10
-
-# Server configuration  
-PORT=3000
-DEBUG=true
-
-# Secrets (never commit these!)
-SECRET_KEY="super-secret-key-here"
+# Linux/macOS
+cp .env.example .env
 ```
 
-### Load It in Pascal
-
-```pascal
-program MyApp;
-
-{$mode objfpc}{$H+}{$J-}
-
-uses
-  DotEnv;
-
-var
-  Env: TDotEnv;
-begin
-  // Create and load .env file
-  Env := TDotEnv.Create;
-  Env.Load;  // Loads .env from current directory
-  
-  // Read values with type safety
-  WriteLn('Database: ', Env.Get('DATABASE_URL'));
-  WriteLn('Port: ', Env.GetInt('PORT', 3000));
-  WriteLn('Debug mode: ', Env.GetBool('DEBUG', False));
-  WriteLn('Pool size: ', Env.GetInt('DB_POOL_SIZE', 5));
-  
-  // No need to free - advanced records clean up automatically!
-end.
+```powershell
+# Windows PowerShell
+Copy-Item .env.example .env
 ```
+
+Compile and run the newcomer example with FPC:
+
+```bash
+fpc -B "-Fusrc" "-FUexamples/hello-dotenv" examples/hello-dotenv/hello_dotenv.pas
+./examples/hello-dotenv/hello_dotenv
+```
+
+On Windows, run `examples\hello-dotenv\hello_dotenv.exe` for the second command.
+
+Or build the same program with Lazarus:
+
+```bash
+lazbuild --build-mode=Release examples/hello-dotenv/hello_dotenv.lpi
+./examples/hello-dotenv/hello_dotenv
+```
+
+Expected output:
+
+```text
+Hello from My First Pascal App!
+Port: 3000
+Debug: TRUE
+```
+
+For your own project, copy `src/DotEnv.pas` beside your program or add `src`
+to its unit search path, then add `DotEnv` to the `uses` clause. The complete
+starter is in [`examples/hello-dotenv`](examples/hello-dotenv/hello_dotenv.pas).
 
 ## 📖 `.env` File Format
 
@@ -138,11 +129,12 @@ begin
   Env := TDotEnv.Create;
   Env.Load;                    // Load .env
   Env.Load('.env.local');      // Load specific file
+  Env.LoadRequired('.env');    // Strict: raises actionable errors
   
   // 🟡 With options
   Options := TDotEnvOptions.Default;
   Options.Override := True;    // Override existing env vars
-  Options.Verbose := True;     // Print debug info  
+  Options.Verbose := True;     // Print debug info with likely secrets redacted
   Options.Prefix := 'APP_';    // Prefix all keys with APP_
   
   Env := TDotEnv.CreateWithOptions(Options);
@@ -176,7 +168,7 @@ Env.GetIntRequired('PORT');        // Raises exception if missing/invalid
 // ✅ Booleans (recognizes: true/false, yes/no, 1/0, on/off)
 Env.GetBool('DEBUG');              // Returns False if missing
 Env.GetBool('DEBUG', True);        // Returns True if missing
-Env.GetBoolRequired('DEBUG');      // Raises exception if missing
+Env.GetBoolRequired('DEBUG');      // Raises exception if missing/invalid
 
 // 🔬 Floats
 Env.GetFloat('RATE');              // Returns 0.0 if missing/invalid
@@ -216,6 +208,17 @@ begin
 end;
 ```
 
+For application startup, prefer aggregate typed validation so users see every
+configuration problem in one run:
+
+```pascal
+Env.ValidateSchemaRequired([
+  TDotEnvSchemaItem.Create('DATABASE_URL'),
+  TDotEnvSchemaItem.Create('PORT', dvkInteger),
+  TDotEnvSchemaItem.Create('DEBUG', dvkBoolean)
+]);
+```
+
 ### Utilities
 
 ```pascal
@@ -231,15 +234,15 @@ Pairs := Env.AsArray;       // TDotEnvPairArray with Key/Value records
 // 🔢 Count loaded variables
 WriteLn('Loaded ', Env.Count, ' environment variables');
 
-// 🐛 Debug output (shows all loaded key=value pairs)
-WriteLn(Env.ToString);
+// 🐛 Debug output with likely secrets replaced by [REDACTED]
+WriteLn(Env.ToRedactedString);
 
 // 📁 See which files were loaded
 for I := 0 to High(Env.LoadedFiles) do
   WriteLn('Loaded: ', Env.LoadedFiles[I]);
 ```
 
-### File Operations (v1.1.0+)
+### File Operations
 
 ```pascal
 // 💾 Save environment variables to a file
@@ -247,7 +250,7 @@ Env := TDotEnv.Create;
 Env.SetToEnv('DATABASE_URL', 'postgres://localhost/mydb');
 Env.SetToEnv('PORT', '3000');
 Env.SetToEnv('DEBUG', 'true');
-Env.Save('.env');  // Writes to .env file
+Env.Save('.env');  // Safely escapes values and atomically replaces the file
 
 // 📋 Generate .env.example for version control
 Env.Load('.env');
@@ -318,7 +321,7 @@ HOME_CONFIG=${HOME}/.myapp/config
 |--------|------|---------|-------------|
 | `Override` | `Boolean` | `False` | Override existing system environment variables |
 | `Interpolate` | `Boolean` | `True` | Enable `${VAR}` variable interpolation |
-| `Verbose` | `Boolean` | `False` | Print debug info while loading |
+| `Verbose` | `Boolean` | `False` | Print debug info with likely secrets redacted |
 | `Prefix` | `String` | `''` | Add prefix to all loaded key names |
 
 ```pascal
@@ -391,18 +394,20 @@ The library includes a comprehensive test suite using FPCUnit:
 
 ```bash
 cd tests
-fpc TestRunner.pas
+fpc -B "-Fu../src" "-FU." TestRunner.pas
 ./TestRunner -a --format=plain
 ```
 
+On Windows, use `TestRunner.exe -a --format=plain` for the final command.
+
 Expected output:
 ```
-Time:00.075 N:96 E:0 F:0 I:0
-  TTestDotEnv Time:00.075 N:96 E:0 F:0 I:0
+Time:00.200 N:121 E:0 F:0 I:0
+  TTestDotEnv Time:00.200 N:121 E:0 F:0 I:0
     00.000  Test01_BasicParsing_SimpleKeyValue
     00.000  Test02_BasicParsing_TrimmedValue
     ...
-Number of run tests: 96
+Number of run tests: 121
 Number of errors:    0
 Number of failures:  0
 ```
@@ -417,7 +422,8 @@ dotenv-fp/
 │   ├── TestRunner.pas      # FPCUnit test runner
 │   └── DotEnv.Test.pas     # Test cases
 ├── examples/
-│   ├── basic/              # Basic usage example
+│   ├── hello-dotenv/       # Five-minute newcomer example
+│   ├── basic/              # Basic API tour
 │   └── advanced/           # Advanced features example
 ├── docs/                   # Documentation
 ├── .env.example            # Example .env file

@@ -9,6 +9,22 @@ This guide will help you set up dotenv-fp in your Free Pascal project.
 
 ## Installation
 
+To try the included newcomer example from a repository checkout:
+
+```bash
+cp .env.example .env
+fpc -B "-Fusrc" "-FUexamples/hello-dotenv" examples/hello-dotenv/hello_dotenv.pas
+./examples/hello-dotenv/hello_dotenv
+```
+
+In Windows PowerShell, use `Copy-Item .env.example .env`, then run
+`examples\hello-dotenv\hello_dotenv.exe`. Lazarus users can build the same
+example with:
+
+```bash
+lazbuild --build-mode=Release examples/hello-dotenv/hello_dotenv.lpi
+```
+
 ### Option 1: Copy the Unit (Simplest)
 
 1. Copy `src/DotEnv.pas` to your project folder
@@ -28,7 +44,7 @@ uses
 ### Option 3: Command Line
 
 ```bash
-fpc -Fu/path/to/dotenv-fp/src myprogram.pas
+fpc "-Fu/path/to/dotenv-fp/src" myprogram.pas
 ```
 
 ## Your First `.env` File
@@ -61,7 +77,7 @@ var
 begin
   // Create and load
   Env := TDotEnv.Create;
-  Env.Load;  // Loads .env from current directory
+  Env.LoadRequired;  // Actionable error if .env is missing or malformed
   
   // Read values
   WriteLn('Host: ', Env.Get('DATABASE_HOST'));
@@ -105,12 +121,14 @@ Rate := Env.GetFloat('RATE', 0.5);
 
 ## Required Values
 
-For configuration that must exist:
+For configuration that must exist, validate all keys and types together:
 
 ```pascal
-// Raises EDotEnvMissingKey if not found
-SecretKey := Env.GetRequired('SECRET_KEY');
-Port := Env.GetIntRequired('PORT');
+Env.ValidateSchemaRequired([
+  TDotEnvSchemaItem.Create('SECRET_KEY'),
+  TDotEnvSchemaItem.Create('PORT', dvkInteger),
+  TDotEnvSchemaItem.Create('DEBUG', dvkBoolean)
+]);
 ```
 
 ## Global Helper Functions

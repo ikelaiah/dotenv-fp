@@ -29,7 +29,7 @@ begin
   WriteLn('--- Custom Options ---');
   Options := TDotEnvOptions.Default;
   Options.Override := True;      // Override existing env vars
-  Options.Verbose := True;       // Print debug info
+  Options.Verbose := True;       // Print debug info with secrets redacted
   Options.Prefix := 'MYAPP_';    // Add prefix to all keys
   
   Env := TDotEnv.CreateWithOptions(Options);
@@ -79,7 +79,7 @@ begin
   
   Keys := Env.Keys;
   for I := 0 to High(Keys) do
-    WriteLn('  ', Keys[I], ' = ', Env.Get(Keys[I]));
+    WriteLn('  ', Keys[I]);
   
   WriteLn;
   WriteLn('Total variables loaded: ', Env.Count);

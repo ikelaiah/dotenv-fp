@@ -85,7 +85,7 @@ begin
   // Show all loaded values
   WriteLn;
   WriteLn('=== All Loaded Values ===');
-  WriteLn(Env.ToString);
+  WriteLn(Env.ToRedactedString);
   
   WriteLn;
   WriteLn('Done!');

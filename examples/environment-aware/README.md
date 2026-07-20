@@ -119,9 +119,9 @@ The program will:
 ```gitignore
 # Ignore all .env files
 .env
-.env.local
-.env.*.local
+.env.*
 
 # Only commit .example files
-!.env*.example
+!.env.example
+!.env.*.example
 ```

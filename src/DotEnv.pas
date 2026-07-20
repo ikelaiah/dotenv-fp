@@ -63,7 +63,7 @@
   
   LICENSE: MIT
   AUTHOR: ikelaiah
-  VERSION: 1.1.0
+  VERSION: 1.2.0
   ==========================================================================
 *)
 unit DotEnv;
@@ -81,7 +81,9 @@ uses
   Classes,   // TStringList, TStream - for file and string handling
   SysUtils,  // File operations, string conversions, exceptions
   StrUtils,  // AnsiStartsStr - for string prefix checking
-  Types;     // TStringDynArray - dynamic array of strings
+  Types      // TStringDynArray - dynamic array of strings
+  {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  {$IFDEF UNIX}, BaseUnix{$ENDIF};
 
 type
   (*
@@ -102,6 +104,18 @@ type
   
   // Dynamic array of TDotEnvPair - used for bulk operations
   TDotEnvPairArray = array of TDotEnvPair;
+
+  // Supported value types for aggregate configuration validation.
+  TDotEnvValueKind = (dvkString, dvkInteger, dvkBoolean, dvkFloat);
+
+  (* Describes one required configuration value and its expected type.
+     Example: TDotEnvSchemaItem.Create('PORT', dvkInteger) *)
+  TDotEnvSchemaItem = record
+    Key: string;
+    ValueKind: TDotEnvValueKind;
+    class function Create(const AKey: string;
+      AValueKind: TDotEnvValueKind = dvkString): TDotEnvSchemaItem; static;
+  end;
 
   (*
     TDotEnvOptions - Configuration options for loading .env files
@@ -127,13 +141,14 @@ type
        Set to False if you need literal ${} in your values. *)
     Interpolate: Boolean;
     
-    (* File encoding for reading .env files. Default is 'UTF-8'.
-       Currently informational - TStringList handles encoding automatically. *)
+    (* Reserved for source compatibility. Files should be UTF-8.
+       This field is currently ignored and may be replaced by an explicit
+       encoding API in a future major release. *)
     Encoding: string;
     
     (* When True, prints debug information during loading.
-       Useful for troubleshooting which values are being loaded.
-       Example output: "DotEnv: Loaded DATABASE_URL=postgres://..." *)
+       Values for likely secret keys are replaced by [REDACTED].
+       Useful for troubleshooting which values are being loaded. *)
     Verbose: Boolean;
     
     (* Prefix to add to all loaded variable names.
@@ -253,7 +268,7 @@ type
     
     (* Handles multi-line values that span multiple lines in the file.
        Called when opening quote is found but closing quote is not on same line.
-       Continues reading lines until closing quote is found. *)
+       Continues reading lines until an unescaped closing quote is found. *)
     function ParseMultiLine(const ALines: TStringList; var AIndex: Integer; 
       const AStartValue: string; AQuoteChar: Char): string;
     
@@ -261,6 +276,10 @@ type
        Returns the value with opening quote removed.
        Sets AQuoteChar to the quote character, or #0 if unquoted. *)
     function DetectQuote(const AValue: string; out AQuoteChar: Char): string;
+
+    (* Validates file syntax before strict loading. Raises an actionable
+       exception containing the absolute path, line number, key and reason. *)
+    procedure ValidateFileSyntax(const AFullPath: string);
   public
     (* =====================================================================
        INITIALIZATION METHODS
@@ -288,6 +307,11 @@ type
        Returns: True if file was found and loaded successfully.
        Note: Silently returns False if file doesn't exist (no exception). *)
     function Load(const APath: string = '.env'): Boolean;
+
+    (* Strict counterpart to Load. Raises EDotEnvFileNotFound when the file is
+       absent and EDotEnvParseError for malformed lines. Existing Load callers
+       retain their permissive, Boolean-returning behavior. *)
+    function LoadRequired(const APath: string = '.env'): Boolean;
     
     (* Loads environment variables from a TStream.
        Useful for loading from resources, network, or memory.
@@ -434,6 +458,14 @@ type
          Missing := Env.GetMissing(['DB_URL', 'SECRET', 'PORT']);
          for Key in Missing do WriteLn('Missing: ', Key); *)
     function GetMissing(const ARequiredKeys: array of string): TStringDynArray;
+
+    (* Validates all schema entries and returns every missing or incorrectly
+       typed value in AErrors. It does not stop after the first problem. *)
+    function ValidateSchema(const ASchema: array of TDotEnvSchemaItem;
+      out AErrors: TStringDynArray): Boolean;
+
+    (* Raises EDotEnvValidationError containing every schema problem. *)
+    procedure ValidateSchemaRequired(const ASchema: array of TDotEnvSchemaItem);
     
     (* =====================================================================
        ENVIRONMENT INTERACTION
@@ -476,8 +508,12 @@ type
     
     (* Returns a string representation of all loaded key-value pairs.
        Format: "KEY1=value1\nKEY2=value2\n..."
-       Useful for debugging what was loaded. *)
+       WARNING: includes secrets. Prefer ToRedactedString for logs. *)
     function ToString: string;
+
+    (* Returns all loaded pairs while replacing values of commonly sensitive
+       keys (passwords, secrets, tokens, credentials and private/API keys). *)
+    function ToRedactedString: string;
     
     (* Returns the list of file paths that were successfully loaded.
        Useful for debugging which files contributed to configuration. *)
@@ -518,6 +554,9 @@ type
   
   // Raised when a value can't be converted to the requested type
   EDotEnvParseError = class(EDotEnvException);
+
+  // Raised when aggregate schema validation finds one or more problems
+  EDotEnvValidationError = class(EDotEnvException);
   
   // Reserved for future use - file not found errors
   EDotEnvFileNotFound = class(EDotEnvException);
@@ -566,6 +605,104 @@ var
      Prevents re-initialization on each call. *)
   GlobalDotEnvInitialized: Boolean = False;
 
+class function TDotEnvSchemaItem.Create(const AKey: string;
+  AValueKind: TDotEnvValueKind): TDotEnvSchemaItem;
+begin
+  Result.Key := AKey;
+  Result.ValueKind := AValueKind;
+end;
+
+function IsValidEnvKey(const AKey: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if AKey = '' then
+    Exit;
+  if not (AKey[1] in ['A'..'Z', 'a'..'z', '_']) then
+    Exit;
+  for I := 2 to Length(AKey) do
+    if not (AKey[I] in ['A'..'Z', 'a'..'z', '0'..'9', '_']) then
+      Exit;
+  Result := True;
+end;
+
+function FindClosingQuote(const AText: string; AQuoteChar: Char): Integer;
+var
+  I: Integer;
+  Escaped: Boolean;
+begin
+  Result := 0;
+  Escaped := False;
+  for I := 1 to Length(AText) do
+  begin
+    if (AQuoteChar = '"') and Escaped then
+    begin
+      Escaped := False;
+      Continue;
+    end;
+    if (AQuoteChar = '"') and (AText[I] = '\') then
+    begin
+      Escaped := True;
+      Continue;
+    end;
+    if AText[I] = AQuoteChar then
+    begin
+      Result := I;
+      Exit;
+    end;
+  end;
+end;
+
+function SerializeEnvValue(const AValue: string): string;
+var
+  I: Integer;
+begin
+  Result := '"';
+  for I := 1 to Length(AValue) do
+    case AValue[I] of
+      '\': Result := Result + '\\';
+      '"': Result := Result + '\"';
+      '$': Result := Result + '\$';
+      #10: Result := Result + '\n';
+      #13: Result := Result + '\r';
+      #9: Result := Result + '\t';
+    else
+      Result := Result + AValue[I];
+    end;
+  Result := Result + '"';
+end;
+
+function IsSensitiveEnvKey(const AKey: string): Boolean;
+var
+  UpperKey: string;
+begin
+  UpperKey := UpperCase(AKey);
+  Result := (Pos('PASSWORD', UpperKey) > 0) or
+            (Pos('SECRET', UpperKey) > 0) or
+            (Pos('TOKEN', UpperKey) > 0) or
+            (Pos('CREDENTIAL', UpperKey) > 0) or
+            (Pos('PRIVATE_KEY', UpperKey) > 0) or
+            AnsiEndsStr('_API_KEY', UpperKey) or
+            (UpperKey = 'API_KEY');
+end;
+
+function ReplaceFileFromTemp(const ATempPath, ADestPath: string): Boolean;
+begin
+  {$IFDEF MSWINDOWS}
+  Result := MoveFileEx(PChar(ATempPath), PChar(ADestPath),
+    MOVEFILE_REPLACE_EXISTING);
+  {$ELSE}
+    {$IFDEF UNIX}
+    Result := fpRename(PChar(ATempPath), PChar(ADestPath)) = 0;
+    {$ELSE}
+    if FileExists(ADestPath) and not SysUtils.DeleteFile(ADestPath) then
+      Exit(False);
+    Result := RenameFile(ATempPath, ADestPath);
+    {$ENDIF}
+  {$ENDIF}
+end;
+
 (* =========================================================================
    TDotEnvOptions Implementation
    ========================================================================= *)
@@ -575,7 +712,7 @@ begin
   (* Set sensible defaults that work for most use cases:
      - Don't override system env vars (safer for production)
      - Enable variable interpolation (most users expect this)
-     - Use UTF-8 encoding (universal standard)
+     - Keep the reserved encoding field at its documented default
      - Quiet mode (no debug output)
      - No key prefix (load keys as-is) *)
   Result.Override := False;
@@ -850,6 +987,8 @@ var
   Line: string;
   EndPos: Integer;
 begin
+  // Keep the raw quoted content intact until the closing quote is found, then
+  // let ParseValue apply the same escape rules used for single-line values.
   Result := AStartValue;
   
   // Keep reading lines until we find closing quote or EOF
@@ -858,19 +997,22 @@ begin
     Inc(AIndex);
     Line := ALines[AIndex];
     
-    // Look for closing quote on this line
-    EndPos := Pos(AQuoteChar, Line);
+    // Ignore escaped double quotes while looking for the real closing quote.
+    EndPos := FindClosingQuote(Line, AQuoteChar);
     if EndPos > 0 then
     begin
-      // Found closing quote - append content before it and stop
-      Result := Result + #10 + Copy(Line, 1, EndPos - 1);
+      // Include the closing quote so ParseValue stops at the correct position.
+      Result := Result + #10 + Copy(Line, 1, EndPos);
+      Result := ParseValue(Result, AQuoteChar);
       Exit;
     end
     else
       // No closing quote - append entire line and continue
       Result := Result + #10 + Line;
   end;
-  // If we get here, closing quote was never found - value includes rest of file
+  // Permissive Load callers retain the content through EOF. LoadRequired
+  // rejects this case during ValidateFileSyntax before parsing begins.
+  Result := ParseValue(Result, AQuoteChar);
 end;
 
 (*
@@ -889,6 +1031,11 @@ function TDotEnv.ExpandVariable(const AVarName: string): string;
 var
   Idx: Integer;
 begin
+  // Never query the OS with an empty name. On Windows, Free Pascal may return
+  // a hidden drive-current-directory entry such as "::=::\" for ${}.
+  if AVarName = '' then
+    Exit('');
+
   (* First check our loaded values - allows ${VAR} to reference
      variables defined earlier in the same .env file *)
   Idx := FValues.Find(AVarName);
@@ -924,7 +1071,6 @@ function TDotEnv.InterpolateValue(const AValue: string): string;
 var
   I, J, VarStart: Integer;
   VarName: string;
-  InBrace: Boolean;
   Ch: Char;
 begin
   // Skip interpolation if disabled in options
@@ -941,6 +1087,15 @@ begin
   while I <= Length(AValue) do
   begin
     Ch := AValue[I];
+
+    // A backslash before $ represents a literal dollar sign. Save() uses
+    // this form so values containing interpolation-like text round-trip.
+    if (Ch = '\') and (I < Length(AValue)) and (AValue[I + 1] = '$') then
+    begin
+      Result := Result + '$';
+      Inc(I, 2);
+      Continue;
+    end;
     
     if Ch = '$' then
     begin
@@ -948,7 +1103,6 @@ begin
       if (I < Length(AValue)) and (AValue[I + 1] = '{') then
       begin
         // ${VAR} syntax
-        InBrace := True;
         VarStart := I + 2;
         J := VarStart;
         while (J <= Length(AValue)) and (AValue[J] <> '}') do
@@ -1052,6 +1206,89 @@ begin
   Result := True;
 end;
 
+procedure TDotEnv.ValidateFileSyntax(const AFullPath: string);
+var
+  Lines: TStringList;
+  I, StartLine, EqPos, ClosePos: Integer;
+  Line, Key, RawValue, Content, Trailing: string;
+  QuoteChar: Char;
+  Closed: Boolean;
+begin
+  Lines := TStringList.Create;
+  try
+    try
+      Lines.LoadFromFile(AFullPath);
+    except
+      on E: Exception do
+        raise EDotEnvException.CreateFmt('Unable to read dotenv file "%s": %s',
+          [AFullPath, E.Message]);
+    end;
+
+    I := 0;
+    while I < Lines.Count do
+    begin
+      Line := Trim(Lines[I]);
+      if (Line = '') or (Line[1] = '#') then
+      begin
+        Inc(I);
+        Continue;
+      end;
+
+      StartLine := I + 1;
+      if AnsiStartsStr('export ', Line) then
+        Line := Trim(Copy(Line, 8, Length(Line)));
+
+      EqPos := Pos('=', Line);
+      if EqPos = 0 then
+        raise EDotEnvParseError.CreateFmt(
+          '%s:%d: invalid entry "%s": expected KEY=value',
+          [AFullPath, StartLine, Line]);
+
+      Key := Trim(Copy(Line, 1, EqPos - 1));
+      if not IsValidEnvKey(Key) then
+        raise EDotEnvParseError.CreateFmt(
+          '%s:%d: invalid key "%s": use letters, digits and underscores; the first character cannot be a digit',
+          [AFullPath, StartLine, Key]);
+
+      RawValue := TrimLeft(Copy(Line, EqPos + 1, Length(Line)));
+      if (RawValue = '') or not (RawValue[1] in ['"', '''']) then
+      begin
+        Inc(I);
+        Continue;
+      end;
+
+      QuoteChar := RawValue[1];
+      Content := Copy(RawValue, 2, Length(RawValue) - 1);
+      ClosePos := FindClosingQuote(Content, QuoteChar);
+      Closed := ClosePos > 0;
+
+      while not Closed and (I < Lines.Count - 1) do
+      begin
+        Inc(I);
+        Content := Lines[I];
+        ClosePos := FindClosingQuote(Content, QuoteChar);
+        Closed := ClosePos > 0;
+      end;
+
+      if not Closed then
+        raise EDotEnvParseError.CreateFmt(
+          '%s:%d: invalid value for key "%s": unterminated %s-quoted value',
+          [AFullPath, StartLine, Key,
+           IfThen(QuoteChar = '"', 'double', 'single')]);
+
+      Trailing := Trim(Copy(Content, ClosePos + 1, Length(Content)));
+      if (Trailing <> '') and (Trailing[1] <> '#') then
+        raise EDotEnvParseError.CreateFmt(
+          '%s:%d: invalid value for key "%s": unexpected text after the closing quote',
+          [AFullPath, I + 1, Key]);
+
+      Inc(I);
+    end;
+  finally
+    Lines.Free;
+  end;
+end;
+
 (*
   Load - Loads environment variables from a .env file
   -------------------------------------------------------------------------
@@ -1145,13 +1382,15 @@ begin
       RawValue := DetectQuote(RawValue, QuoteChar);
       
       // Check for multi-line value (quoted but no closing quote on this line)
-      if (QuoteChar <> #0) and (Pos(QuoteChar, RawValue) = 0) then
-        Value := ParseMultiLine(Lines, I, ParseValue(RawValue, #0), QuoteChar)
+      if (QuoteChar <> #0) and
+         (FindClosingQuote(RawValue, QuoteChar) = 0) then
+        Value := ParseMultiLine(Lines, I, RawValue, QuoteChar)
       else
         Value := ParseValue(RawValue, QuoteChar);
       
-      // Perform variable interpolation (${VAR} and $VAR)
-      Value := InterpolateValue(Value);
+      // Single quotes are literal; other forms support interpolation.
+      if QuoteChar <> '''' then
+        Value := InterpolateValue(Value);
       
       // Check if we should skip this key (don't override existing env vars)
       if not FOptions.Override then
@@ -1168,7 +1407,12 @@ begin
       
       // Verbose output for debugging
       if FOptions.Verbose then
-        WriteLn('DotEnv: Loaded ', Key, '=', Value);
+      begin
+        if IsSensitiveEnvKey(Key) then
+          WriteLn('DotEnv: Loaded ', Key, '=[REDACTED]')
+        else
+          WriteLn('DotEnv: Loaded ', Key, '=', Value);
+      end;
       
       Inc(I);
     end;
@@ -1183,6 +1427,26 @@ begin
     // Always free the TStringList, even if an exception occurs
     Lines.Free;
   end;
+end;
+
+function TDotEnv.LoadRequired(const APath: string): Boolean;
+var
+  FullPath: string;
+begin
+  if APath = '' then
+    FullPath := ExpandFileName('.env')
+  else
+    FullPath := ExpandFileName(APath);
+
+  if not FileExists(FullPath) then
+    raise EDotEnvFileNotFound.CreateFmt(
+      'Required dotenv file not found: "%s"', [FullPath]);
+
+  ValidateFileSyntax(FullPath);
+  Result := Load(FullPath);
+  if not Result then
+    raise EDotEnvException.CreateFmt('Unable to load dotenv file: "%s"',
+      [FullPath]);
 end;
 
 (*
@@ -1275,13 +1539,15 @@ begin
       RawValue := DetectQuote(RawValue, QuoteChar);
       
       // Check for multi-line value
-      if (QuoteChar <> #0) and (Pos(QuoteChar, RawValue) = 0) then
-        Value := ParseMultiLine(Lines, I, ParseValue(RawValue, #0), QuoteChar)
+      if (QuoteChar <> #0) and
+         (FindClosingQuote(RawValue, QuoteChar) = 0) then
+        Value := ParseMultiLine(Lines, I, RawValue, QuoteChar)
       else
         Value := ParseValue(RawValue, QuoteChar);
       
-      // Perform variable interpolation
-      Value := InterpolateValue(Value);
+      // Single quotes are literal; other forms support interpolation.
+      if QuoteChar <> '''' then
+        Value := InterpolateValue(Value);
       
       FValues.Add(Key, Value);
       Inc(I);
@@ -1490,8 +1756,10 @@ var
   S: string;
 begin
   S := LowerCase(Trim(GetRequired(AKey)));
-  (* Note: doesn't validate that value is actually a boolean-like string.
-     Any non-truthy value returns False. *)
+  if not ((S = 'true') or (S = '1') or (S = 'yes') or (S = 'on') or
+          (S = 'false') or (S = '0') or (S = 'no') or (S = 'off')) then
+    raise EDotEnvParseError.CreateFmt('Cannot convert %s to boolean: %s',
+      [AKey, S]);
   Result := (S = 'true') or (S = '1') or (S = 'yes') or (S = 'on');
 end;
 
@@ -1535,6 +1803,7 @@ var
   Parts: TStringList;
   I: Integer;
 begin
+  Result := nil;
   S := Get(AKey, '');
   if S = '' then
   begin
@@ -1579,6 +1848,7 @@ function TDotEnv.Keys: TStringDynArray;
 var
   I: Integer;
 begin
+  Result := nil;
   SetLength(Result, FValues.Count);
   for I := 0 to FValues.Count - 1 do
     Result[I] := FValues.GetPair(I).Key;
@@ -1593,6 +1863,7 @@ function TDotEnv.Values: TStringDynArray;
 var
   I: Integer;
 begin
+  Result := nil;
   SetLength(Result, FValues.Count);
   for I := 0 to FValues.Count - 1 do
     Result[I] := FValues.GetPair(I).Value;
@@ -1608,6 +1879,7 @@ function TDotEnv.AsArray: TDotEnvPairArray;
 var
   I: Integer;
 begin
+  Result := nil;
   SetLength(Result, FValues.Count);
   for I := 0 to FValues.Count - 1 do
     Result[I] := FValues.GetPair(I);
@@ -1665,7 +1937,9 @@ var
   I, MissingCount: Integer;
   Temp: TStringDynArray;
 begin
+  Result := nil;
   // Pre-allocate maximum possible size
+  Temp := nil;
   SetLength(Temp, Length(ARequiredKeys));
   MissingCount := 0;
   
@@ -1682,6 +1956,81 @@ begin
   SetLength(Result, MissingCount);
   for I := 0 to MissingCount - 1 do
     Result[I] := Temp[I];
+end;
+
+function TDotEnv.ValidateSchema(const ASchema: array of TDotEnvSchemaItem;
+  out AErrors: TStringDynArray): Boolean;
+var
+  I, ErrorCount, ParsedInt: Integer;
+  ParsedFloat: Double;
+  Value, Normalized, ErrorText: string;
+  Valid: Boolean;
+begin
+  AErrors := nil;
+  SetLength(AErrors, Length(ASchema));
+  ErrorCount := 0;
+
+  for I := Low(ASchema) to High(ASchema) do
+  begin
+    Value := Get(ASchema[I].Key, '');
+    ErrorText := '';
+    if Value = '' then
+      ErrorText := ASchema[I].Key + ': required value is missing or empty'
+    else
+    begin
+      Valid := True;
+      case ASchema[I].ValueKind of
+        dvkString:
+          Valid := True;
+        dvkInteger:
+          Valid := TryStrToInt(Value, ParsedInt);
+        dvkBoolean:
+          begin
+            Normalized := LowerCase(Trim(Value));
+            Valid := (Normalized = 'true') or (Normalized = 'false') or
+                     (Normalized = '1') or (Normalized = '0') or
+                     (Normalized = 'yes') or (Normalized = 'no') or
+                     (Normalized = 'on') or (Normalized = 'off');
+          end;
+        dvkFloat:
+          Valid := TryStrToFloat(Value, ParsedFloat);
+      end;
+
+      if not Valid then
+        case ASchema[I].ValueKind of
+          dvkInteger: ErrorText := ASchema[I].Key + ': expected an integer, got "' + Value + '"';
+          dvkBoolean: ErrorText := ASchema[I].Key + ': expected true/false, yes/no, on/off or 1/0, got "' + Value + '"';
+          dvkFloat: ErrorText := ASchema[I].Key + ': expected a number, got "' + Value + '"';
+        else
+          ErrorText := ASchema[I].Key + ': invalid value';
+        end;
+    end;
+
+    if ErrorText <> '' then
+    begin
+      AErrors[ErrorCount] := ErrorText;
+      Inc(ErrorCount);
+    end;
+  end;
+
+  SetLength(AErrors, ErrorCount);
+  Result := ErrorCount = 0;
+end;
+
+procedure TDotEnv.ValidateSchemaRequired(
+  const ASchema: array of TDotEnvSchemaItem);
+var
+  Errors: TStringDynArray;
+  I: Integer;
+  MessageText: string;
+begin
+  if ValidateSchema(ASchema, Errors) then
+    Exit;
+
+  MessageText := 'Invalid environment configuration:';
+  for I := 0 to High(Errors) do
+    MessageText := MessageText + LineEnding + '  - ' + Errors[I];
+  raise EDotEnvValidationError.Create(MessageText);
 end;
 
 (* =========================================================================
@@ -1719,11 +2068,9 @@ end;
 (*
   Save - Save all loaded key-value pairs to a .env file
   -------------------------------------------------------------------------
-  Writes all loaded environment variables to a file in KEY=value format.
-  Useful for generating configuration files or persisting runtime changes.
-
-  Note: Values are written unquoted. If a value contains special characters
-  like spaces or #, you may want to manually quote them after generation.
+  Writes all loaded environment variables with quoted, escaped values, then
+  atomically replaces the destination using a same-directory temporary file.
+  Values can be loaded again without losing supported characters.
 
   Example:
     Env.SetToEnv('DATABASE_URL', 'postgres://localhost/mydb');
@@ -1735,29 +2082,44 @@ var
   Lines: TStringList;
   I: Integer;
   Pair: TDotEnvPair;
+  FullPath, TempPath: string;
 begin
   Result := False;
+  FullPath := ExpandFileName(APath);
+  TempPath := FullPath + '.tmp';
   Lines := TStringList.Create;
   try
-    // Build the content
+    // Quote every value so whitespace, comments, control characters and
+    // interpolation-like text survive a subsequent Load unchanged.
     for I := 0 to FValues.Count - 1 do
     begin
       Pair := FValues.GetPair(I);
-      Lines.Add(Pair.Key + '=' + Pair.Value);
+      Lines.Add(Pair.Key + '=' + SerializeEnvValue(Pair.Value));
     end;
 
-    // Save to file
     try
-      Lines.SaveToFile(APath);
+      if FileExists(TempPath) and not SysUtils.DeleteFile(TempPath) then
+        raise EDotEnvException.CreateFmt(
+          'Unable to remove stale temporary file "%s"', [TempPath]);
+
+      // The temporary file is deliberately created next to the destination,
+      // allowing the final rename/replace operation to be atomic.
+      Lines.SaveToFile(TempPath);
+      if not ReplaceFileFromTemp(TempPath, FullPath) then
+        raise EDotEnvException.CreateFmt(
+          'Unable to replace "%s" with temporary file "%s"',
+          [FullPath, TempPath]);
       Result := True;
 
       if FOptions.Verbose then
-        WriteLn('DotEnv: Saved ', FValues.Count, ' variables to ', APath);
+        WriteLn('DotEnv: Saved ', FValues.Count, ' variables to ', FullPath);
     except
       on E: Exception do
       begin
+        if FileExists(TempPath) then
+          SysUtils.DeleteFile(TempPath);
         if FOptions.Verbose then
-          WriteLn('DotEnv: Error saving to ', APath, ': ', E.Message);
+          WriteLn('DotEnv: Error saving to ', FullPath, ': ', E.Message);
         Result := False;
       end;
     end;
@@ -1875,7 +2237,8 @@ end;
     KEY1=value1
     KEY2=value2
   
-  Useful for debugging, logging, or saving modified configuration.
+  Useful for inspecting values in trusted contexts. This output can contain
+  secrets and must not be logged; use ToRedactedString for diagnostics.
   Note: Does not include system environment variables.
 *)
 function TDotEnv.ToString: string;
@@ -1890,6 +2253,26 @@ begin
     if Result <> '' then
       Result := Result + LineEnding;  // Platform-independent line ending
     Result := Result + Pair.Key + '=' + Pair.Value;
+  end;
+end;
+
+function TDotEnv.ToRedactedString: string;
+var
+  I: Integer;
+  Pair: TDotEnvPair;
+  DisplayValue: string;
+begin
+  Result := '';
+  for I := 0 to FValues.Count - 1 do
+  begin
+    Pair := FValues.GetPair(I);
+    if IsSensitiveEnvKey(Pair.Key) then
+      DisplayValue := '[REDACTED]'
+    else
+      DisplayValue := Pair.Value;
+    if Result <> '' then
+      Result := Result + LineEnding;
+    Result := Result + Pair.Key + '=' + DisplayValue;
   end;
 end;
 
