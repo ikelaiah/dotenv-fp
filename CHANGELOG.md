@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-07-21
+
+### Added
+
+- Cross-platform `build-examples.ps1` and `build-examples.sh` entrypoints that
+  build every canonical Lazarus example into the ignored `examples-bin/`
+  directory
+- An authoritative `examples/README.md` beginner learning path and focused
+  README files for every runnable example
+- CI runtime smoke coverage for all five canonical examples on Windows and
+  Linux, including default-input automation for the interactive setup
+
+### Changed
+
+- `examples/` is now the documented source of truth for runnable code, while
+  `docs/examples.md` is a catalog linking to the projects compiled by CI
+- All five example projects now follow the current strict-loading,
+  namespacing, typed-validation, and redacted-diagnostics guidance where
+  appropriate
+- The environment-aware example now uses a unique temporary directory and
+  cleans up its demonstration files
+- Package metadata, documentation, and release material now identify v1.2.1
+
+### Fixed
+
+- Removed stale v1.1.0 labels and patterns from the environment-aware and
+  interactive setup examples
+- Examples no longer print configured secret keys or credential-bearing URLs
+- Removed committed runtime `.env` files from example projects and replaced
+  required fixtures with safe `.env.example` templates
+- Example build output no longer lands beside source files when using the
+  documented build scripts
+
 ## [1.2.0] - 2026-07-20
 
 ### Added
@@ -75,7 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite
 - Documentation and examples
 
-[Unreleased]: https://github.com/ikelaiah/dotenv-fp/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ikelaiah/dotenv-fp/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/ikelaiah/dotenv-fp/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/ikelaiah/dotenv-fp/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ikelaiah/dotenv-fp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ikelaiah/dotenv-fp/releases/tag/v1.0.0
