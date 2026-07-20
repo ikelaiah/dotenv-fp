@@ -11,13 +11,15 @@ Welcome to the dotenv-fp documentation! This guide will help you get started and
 | [Syntax Guide](syntax.md) | `.env` file format, quotes, interpolation, multi-line values |
 | [API Reference](api-reference.md) | Complete list of all methods and types |
 | [Examples](examples.md) | Real-world use cases and patterns |
-| [v1.2.0 Release Notes](../RELEASE_NOTES_v1.2.0.md) | Strict loading, typed validation, safe saving, and migration guidance |
+| [v1.2.1 Release Notes](RELEASE_NOTES_v1.2.1.md) | Canonical runnable examples and cross-platform build scripts |
+| [v1.2.1 PR Notes](PR_v1.2.1.md) | Ready-to-use PR description and release checklist |
 
 ## Quick Links
 
 - 🏠 [Back to Main README](../README.md)
 - 📝 [Changelog](../CHANGELOG.md)
-- 🎉 [v1.2.0 Release Notes](../RELEASE_NOTES_v1.2.0.md)
+- 🎉 [v1.2.1 Release Notes](RELEASE_NOTES_v1.2.1.md)
+- 📝 [v1.2.1 PR Notes](PR_v1.2.1.md)
 - 🧪 [Tests](../tests/)
 - 💻 [Source Code](../src/DotEnv.pas)
 

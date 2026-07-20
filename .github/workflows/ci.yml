@@ -42,19 +42,20 @@ jobs:
         working-directory: tests
         run: .\TestRunner.exe -a --format=plain
 
-      - name: Build all examples
-        run: |
-          lazbuild --build-mode=Release examples/hello-dotenv/hello_dotenv.lpi
-          lazbuild --build-mode=Release examples/basic/basic_example.lpi
-          lazbuild --build-mode=Release examples/advanced/advanced_example.lpi
-          lazbuild --build-mode=Release examples/environment-aware/environment_example.lpi
-          lazbuild --build-mode=Release examples/interactive-setup/setup_example.lpi
+      - name: Build all examples (Linux)
+        if: runner.os == 'Linux'
+        run: bash ./build-examples.sh
+
+      - name: Build all examples (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./build-examples.ps1
 
       - name: Smoke-test newcomer example (Linux)
         if: runner.os == 'Linux'
         run: |
           cp .env.example .env
-          PORT=not-an-integer DEBUG=release ./examples/hello-dotenv/hello_dotenv
+          PORT=not-an-integer DEBUG=release ./examples-bin/hello_dotenv
 
       - name: Smoke-test newcomer example (Windows)
         if: runner.os == 'Windows'
@@ -63,4 +64,43 @@ jobs:
           Copy-Item .env.example .env
           $env:PORT = 'not-an-integer'
           $env:DEBUG = 'release'
-          .\examples\hello-dotenv\hello_dotenv.exe
+          .\examples-bin\hello_dotenv.exe
+
+      - name: Smoke-test remaining examples (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cp examples/basic/.env.example examples/basic/.env
+          (cd examples/basic && ../../examples-bin/basic_example)
+          cp examples/advanced/.env.example examples/advanced/.env
+          (cd examples/advanced && ../../examples-bin/advanced_example)
+          ./examples-bin/environment_example
+          mkdir -p test_dir/interactive-smoke
+          (cd test_dir/interactive-smoke && printf '\n\n\n\n' | ../../examples-bin/setup_example)
+          test -f test_dir/interactive-smoke/.env
+          test -f test_dir/interactive-smoke/.env.example
+          ! grep -Eq 'MyPascalApp|postgresql://|3000|false' test_dir/interactive-smoke/.env.example
+
+      - name: Smoke-test remaining examples (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item examples/basic/.env.example examples/basic/.env
+          Push-Location examples/basic
+          ..\..\examples-bin\basic_example.exe
+          Pop-Location
+          Copy-Item examples/advanced/.env.example examples/advanced/.env
+          Push-Location examples/advanced
+          ..\..\examples-bin\advanced_example.exe
+          Pop-Location
+          .\examples-bin\environment_example.exe
+          New-Item -ItemType Directory -Path test_dir/interactive-smoke -Force | Out-Null
+          Push-Location test_dir/interactive-smoke
+          @('', '', '', '') | & ..\..\examples-bin\setup_example.exe
+          if ($LASTEXITCODE -ne 0) { throw 'setup_example failed' }
+          if (-not (Test-Path .env)) { throw 'setup_example did not create .env' }
+          if (-not (Test-Path .env.example)) { throw 'setup_example did not create .env.example' }
+          $example = Get-Content -Raw .env.example
+          if ($example -match 'MyPascalApp|postgresql://|3000|false') {
+            throw '.env.example retained configured values'
+          }
+          Pop-Location

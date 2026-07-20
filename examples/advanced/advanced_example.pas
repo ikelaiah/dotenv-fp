@@ -1,89 +1,86 @@
-(*
-  Advanced Example - DotEnv for Free Pascal
-  
-  Demonstrates:
-  - Custom options
-  - Multiple file loading
-  - Environment prefixing
-  - Override behavior
-  - Global helpers
-*)
 program advanced_example;
 
 {$mode objfpc}{$H+}{$J-}
 
 uses
-  SysUtils, Types, DotEnv;
+  Types, DotEnv;
 
 var
   Env: TDotEnv;
   Options: TDotEnvOptions;
-  Keys: TStringDynArray;
+  Errors, Keys: TStringDynArray;
   I: Integer;
-  
+
 begin
-  WriteLn('=== DotEnv Advanced Example ===');
+  WriteLn('=== dotenv-fp Advanced Example ===');
   WriteLn;
-  
-  // Example 1: Custom options
-  WriteLn('--- Custom Options ---');
-  Options := TDotEnvOptions.Default;
-  Options.Override := True;      // Override existing env vars
-  Options.Verbose := True;       // Print debug info with secrets redacted
-  Options.Prefix := 'MYAPP_';    // Add prefix to all keys
-  
-  Env := TDotEnv.CreateWithOptions(Options);
-  Env.Load('.env');
-  
-  // Keys will be prefixed with MYAPP_
-  WriteLn('MYAPP_PORT: ', Env.Get('MYAPP_PORT', 'not set'));
-  WriteLn;
-  
-  // Example 2: Multiple file loading (like .env.local, .env.development)
-  WriteLn('--- Multiple Files ---');
-  Env := TDotEnv.Create;
-  Env.LoadMultiple(['.env', '.env.local']);
-  
-  WriteLn('Loaded files:');
-  for I := 0 to High(Env.LoadedFiles) do
-    WriteLn('  - ', Env.LoadedFiles[I]);
-  WriteLn;
-  
-  // Example 3: Load from string (useful for testing)
-  WriteLn('--- Load from String ---');
-  Env := TDotEnv.Create;
-  Env.LoadFromString(
-    'TEST_VAR=hello' + LineEnding +
-    'TEST_NUM=42' + LineEnding +
-    'TEST_BOOL=true'
-  );
-  
-  WriteLn('TEST_VAR: ', Env.Get('TEST_VAR'));
-  WriteLn('TEST_NUM: ', Env.GetInt('TEST_NUM'));
-  WriteLn('TEST_BOOL: ', Env.GetBool('TEST_BOOL'));
-  WriteLn;
-  
-  // Example 4: Using global helpers (simple API)
-  WriteLn('--- Global Helpers ---');
-  DotEnvLoad('.env');
-  WriteLn('Using global: ', DotEnvGet('DATABASE_URL', 'not set'));
-  
-  DotEnvSet('RUNTIME_VAR', 'set at runtime');
-  WriteLn('Runtime var: ', DotEnvGet('RUNTIME_VAR'));
-  WriteLn;
-  
-  // Example 5: Iterate all keys
-  WriteLn('--- All Keys ---');
-  Env := TDotEnv.Create;
-  Env.Load('.env');
-  
-  Keys := Env.Keys;
-  for I := 0 to High(Keys) do
-    WriteLn('  ', Keys[I]);
-  
-  WriteLn;
-  WriteLn('Total variables loaded: ', Env.Count);
-  
-  WriteLn;
-  WriteLn('Done!');
+
+  try
+    WriteLn('--- Prefixing and redacted verbose-safe data ---');
+    Options := TDotEnvOptions.Default;
+    Options.Override := True;
+    Options.Prefix := 'ADV_PREFIXED_';
+    Env := TDotEnv.CreateWithOptions(Options);
+    Env.LoadFromString(
+      'PORT=4100' + LineEnding +
+      'DEBUG=true' + LineEnding +
+      'API_TOKEN=replace-locally'
+    );
+    WriteLn('Prefixed port: ', Env.GetIntRequired('ADV_PREFIXED_PORT'));
+    WriteLn(Env.ToRedactedString);
+    WriteLn;
+
+    WriteLn('--- Layered files ---');
+    Env := TDotEnv.Create;
+    Env.LoadRequired('.env');
+    Env.Load('.env.local');  // Optional machine-specific overrides.
+
+    if not Env.ValidateSchema([
+      TDotEnvSchemaItem.Create('ADV_APP_NAME'),
+      TDotEnvSchemaItem.Create('ADV_PORT', dvkInteger),
+      TDotEnvSchemaItem.Create('ADV_DEBUG', dvkBoolean),
+      TDotEnvSchemaItem.Create('ADV_API_ENDPOINT'),
+      TDotEnvSchemaItem.Create('ADV_DATABASE_PASSWORD')
+    ], Errors) then
+    begin
+      WriteLn(StdErr, 'Configuration needs attention:');
+      for I := 0 to High(Errors) do
+        WriteLn(StdErr, '  - ', Errors[I]);
+      Halt(1);
+    end;
+
+    WriteLn('Application: ', Env.GetRequired('ADV_APP_NAME'));
+    WriteLn('Port: ', Env.GetIntRequired('ADV_PORT'));
+    WriteLn('Debug: ', Env.GetBoolRequired('ADV_DEBUG'));
+    WriteLn('API endpoint: ', Env.GetRequired('ADV_API_ENDPOINT'));
+    WriteLn('Database password configured: ', Env.Has('ADV_DATABASE_PASSWORD'));
+
+    WriteLn('Loaded files:');
+    for I := 0 to High(Env.LoadedFiles) do
+      WriteLn('  - ', Env.LoadedFiles[I]);
+    WriteLn;
+
+    WriteLn('--- Load from a string ---');
+    Env := TDotEnv.Create;
+    Env.LoadFromString(
+      'ADV_TEST_NAME=inline' + LineEnding +
+      'ADV_TEST_COUNT=42' + LineEnding +
+      'ADV_TEST_ENABLED=true'
+    );
+    WriteLn('Name: ', Env.GetRequired('ADV_TEST_NAME'));
+    WriteLn('Count: ', Env.GetIntRequired('ADV_TEST_COUNT'));
+    WriteLn('Enabled: ', Env.GetBoolRequired('ADV_TEST_ENABLED'));
+    WriteLn;
+
+    WriteLn('--- Loaded keys, without values ---');
+    Keys := Env.Keys;
+    for I := 0 to High(Keys) do
+      WriteLn('  - ', Keys[I]);
+  except
+    on E: EDotEnvException do
+    begin
+      WriteLn(StdErr, 'dotenv-fp error: ', E.Message);
+      Halt(1);
+    end;
+  end;
 end.

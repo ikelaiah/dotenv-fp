@@ -2,161 +2,153 @@ program environment_example;
 
 {$mode objfpc}{$H+}{$J-}
 
-(*
-  ==========================================================================
-  environment_example.pas - Demonstrates LoadForEnvironment()
-  ==========================================================================
-
-  This example shows how to use the new LoadForEnvironment() method
-  to automatically load environment-specific configuration files.
-
-  SECURITY NOTE: The files created by this example contain NO secrets.
-  They only demonstrate the loading pattern with non-sensitive config.
-
-  File pattern (for demonstration only - no actual secrets):
-    - .env                 (base non-secret config)
-    - .env.development     (dev overrides - no secrets)
-    - .env.production      (prod overrides - no secrets)
-
-  IMPORTANT - Real-world security best practices:
-    1. NEVER commit files with actual secrets/credentials to Git
-    2. Use .env.example files (empty values) for version control
-    3. Add .env* to .gitignore (except .env.example)
-    4. Store real secrets in:
-       - Environment variables (set by hosting platform)
-       - Secret management tools (AWS Secrets Manager, Vault, etc.)
-       - Local .env files (NOT committed to Git)
-
-  Usage:
-    1. Create test .env files
-    2. Run with different environments:
-       - Set APP_ENV=development
-       - Set APP_ENV=production
-       - Or pass environment directly
-
-  ==========================================================================
-*)
-
 uses
-  Classes, DotEnv, SysUtils, Types;
+  Classes, SysUtils, Types, DotEnv;
 
-procedure CreateTestEnvFiles;
+const
+  DemoFileNames: array[0..2] of string = (
+    '.env', '.env.development', '.env.production'
+  );
+
+procedure WriteDemoFile(const APath: string; const ALines: array of string);
 var
   Lines: TStringList;
+  I: Integer;
 begin
   Lines := TStringList.Create;
   try
-    // Create .env (base configuration)
-    Lines.Clear;
-    Lines.Add('# Base configuration');
-    Lines.Add('APP_NAME=MyApp');
-    Lines.Add('DATABASE_URL=postgres://localhost/mydb');
-    Lines.Add('PORT=3000');
-    Lines.Add('DEBUG=false');
-    Lines.SaveToFile('.env');
-
-    // Create .env.development (development overrides)
-    Lines.Clear;
-    Lines.Add('# Development environment');
-    Lines.Add('DATABASE_URL=postgres://localhost/mydb_dev');
-    Lines.Add('DEBUG=true');
-    Lines.Add('LOG_LEVEL=verbose');
-    Lines.SaveToFile('.env.development');
-
-    // Create .env.production (production overrides)
-    Lines.Clear;
-    Lines.Add('# Production environment');
-    Lines.Add('DATABASE_URL=postgres://prod-server/mydb_prod');
-    Lines.Add('PORT=8080');
-    Lines.Add('DEBUG=false');
-    Lines.Add('LOG_LEVEL=error');
-    Lines.SaveToFile('.env.production');
-
-    WriteLn('✓ Created test .env files');
-    WriteLn;
+    for I := Low(ALines) to High(ALines) do
+      Lines.Add(ALines[I]);
+    Lines.SaveToFile(APath);
   finally
     Lines.Free;
   end;
 end;
 
-procedure DemonstrateEnvironment(const Environment: string);
+procedure CreateDemoFiles;
+begin
+  WriteDemoFile('.env', [
+    '# Base non-secret configuration',
+    'DEMO_APP_NAME=Environment-aware App',
+    'DEMO_PORT=3000',
+    'DEMO_DEBUG=false',
+    'DEMO_LOG_LEVEL=info'
+  ]);
+  WriteDemoFile('.env.development', [
+    '# Development overrides',
+    'DEMO_DEBUG=true',
+    'DEMO_LOG_LEVEL=verbose'
+  ]);
+  WriteDemoFile('.env.production', [
+    '# Production overrides',
+    'DEMO_PORT=8080',
+    'DEMO_DEBUG=false',
+    'DEMO_LOG_LEVEL=error'
+  ]);
+end;
+
+function CreateDemoDirectory: string;
+var
+  BaseDir: string;
+begin
+  BaseDir := IncludeTrailingPathDelimiter(GetTempDir(False));
+  repeat
+    Result := BaseDir + 'dotenv-fp-environment-' + IntToHex(Random(MaxInt), 8);
+  until not DirectoryExists(Result);
+  if not ForceDirectories(Result) then
+    raise Exception.CreateFmt('Unable to create demo directory: %s', [Result]);
+end;
+
+procedure RemoveDemoDirectory(const APath: string);
+var
+  I: Integer;
+  FilePath: string;
+begin
+  for I := Low(DemoFileNames) to High(DemoFileNames) do
+  begin
+    FilePath := IncludeTrailingPathDelimiter(APath) + DemoFileNames[I];
+    if FileExists(FilePath) then
+      DeleteFile(FilePath);
+  end;
+  if DirectoryExists(APath) then
+    RemoveDir(APath);
+end;
+
+procedure DemonstrateEnvironment(const AEnvironment: string);
 var
   Env: TDotEnv;
-  LoadedFiles: TStringDynArray;
+  Options: TDotEnvOptions;
+  Files: TStringDynArray;
   I: Integer;
 begin
-  WriteLn('===========================================');
-  WriteLn('Loading for environment: ', Environment);
-  WriteLn('===========================================');
+  Options := TDotEnvOptions.Default;
+  Options.Override := True;  // Keep the self-contained demo deterministic.
+  Env := TDotEnv.CreateWithOptions(Options);
 
-  Env := TDotEnv.Create;
+  if not Env.LoadForEnvironment(AEnvironment) then
+    raise EDotEnvException.Create('Unable to load the demo configuration');
 
-  // LoadForEnvironment will load .env first, then .env.{environment}
-  if Env.LoadForEnvironment(Environment) then
-  begin
-    WriteLn('Loaded ', Env.Count, ' configuration variables');
-    WriteLn;
-    WriteLn('Configuration:');
-    WriteLn('  APP_NAME     : ', Env.Get('APP_NAME'));
-    WriteLn('  DATABASE_URL : ', Env.Get('DATABASE_URL'));
-    WriteLn('  PORT         : ', Env.Get('PORT'));
-    WriteLn('  DEBUG        : ', Env.Get('DEBUG'));
-    WriteLn('  LOG_LEVEL    : ', Env.Get('LOG_LEVEL', '(not set)'));
-    WriteLn;
+  Env.ValidateSchemaRequired([
+    TDotEnvSchemaItem.Create('DEMO_APP_NAME'),
+    TDotEnvSchemaItem.Create('DEMO_PORT', dvkInteger),
+    TDotEnvSchemaItem.Create('DEMO_DEBUG', dvkBoolean),
+    TDotEnvSchemaItem.Create('DEMO_LOG_LEVEL')
+  ]);
 
-    WriteLn('Files loaded:');
-    LoadedFiles := Env.LoadedFiles;
-    for I := 0 to High(LoadedFiles) do
-      WriteLn('  - ', LoadedFiles[I]);
-  end
-  else
-    WriteLn('✗ Failed to load configuration');
-
+  WriteLn('Environment: ', AEnvironment);
+  WriteLn('  Application: ', Env.GetRequired('DEMO_APP_NAME'));
+  WriteLn('  Port: ', Env.GetIntRequired('DEMO_PORT'));
+  WriteLn('  Debug: ', Env.GetBoolRequired('DEMO_DEBUG'));
+  WriteLn('  Log level: ', Env.GetRequired('DEMO_LOG_LEVEL'));
+  WriteLn('  Files:');
+  Files := Env.LoadedFiles;
+  for I := 0 to High(Files) do
+    WriteLn('    - ', ExtractFileName(Files[I]));
   WriteLn;
 end;
 
 var
-  CurrentEnv: string;
+  DemoDir, OriginalDir, DetectedEnvironment: string;
   Env: TDotEnv;
+  Options: TDotEnvOptions;
 
 begin
-  WriteLn('===========================================');
-  WriteLn('  dotenv-fp v1.1.0 - Environment Example');
-  WriteLn('===========================================');
-  WriteLn;
+  Randomize;
+  OriginalDir := GetCurrentDir;
+  DemoDir := CreateDemoDirectory;
+  try
+    try
+      if not SetCurrentDir(DemoDir) then
+        raise Exception.CreateFmt(
+          'Unable to enter demo directory: %s', [DemoDir]);
+      CreateDemoFiles;
 
-  // Create test environment files
-  CreateTestEnvFiles;
+      WriteLn('=== dotenv-fp Environment-aware Loading ===');
+      WriteLn;
+      DemonstrateEnvironment('development');
+      DemonstrateEnvironment('production');
 
-  // Demonstrate loading different environments
-  DemonstrateEnvironment('development');
-  DemonstrateEnvironment('production');
+      DetectedEnvironment := GetEnvironmentVariable('APP_ENV');
+      if DetectedEnvironment = '' then
+        DetectedEnvironment := GetEnvironmentVariable('NODE_ENV');
+      if DetectedEnvironment = '' then
+        DetectedEnvironment := '(none; base file only)';
 
-  // Demonstrate auto-detection (will use APP_ENV or NODE_ENV if set)
-  WriteLn('===========================================');
-  WriteLn('Auto-detection (using APP_ENV or NODE_ENV)');
-  WriteLn('===========================================');
-
-  CurrentEnv := GetEnvironmentVariable('APP_ENV');
-  if CurrentEnv = '' then
-    CurrentEnv := GetEnvironmentVariable('NODE_ENV');
-  if CurrentEnv = '' then
-    CurrentEnv := '(none - will load only .env)';
-  WriteLn('Detected environment: ', CurrentEnv);
-  WriteLn;
-
-  Env := TDotEnv.Create;
-  Env.LoadForEnvironment();  // Auto-detect
-  WriteLn('Loaded ', Env.Count, ' variables');
-  WriteLn;
-
-  WriteLn('===========================================');
-  WriteLn('Example complete!');
-  WriteLn('===========================================');
-  WriteLn;
-  WriteLn('Try setting APP_ENV environment variable:');
-  WriteLn('  SET APP_ENV=development (Windows)');
-  WriteLn('  export APP_ENV=development (Linux/Mac)');
-  WriteLn;
-  WriteLn('Then run this example again to see auto-detection work!');
+      Options := TDotEnvOptions.Default;
+      Options.Override := True;
+      Env := TDotEnv.CreateWithOptions(Options);
+      Env.LoadForEnvironment;
+      WriteLn('Auto-detected environment: ', DetectedEnvironment);
+      WriteLn('Auto-detected load count: ', Env.Count);
+    except
+      on E: Exception do
+      begin
+        WriteLn(StdErr, 'Environment example failed: ', E.Message);
+        ExitCode := 1;
+      end;
+    end;
+  finally
+    SetCurrentDir(OriginalDir);
+    RemoveDemoDirectory(DemoDir);
+  end;
 end.

@@ -9,7 +9,7 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 [![Lazarus](https://img.shields.io/badge/Lazarus-4.0+-60A5FA.svg)](https://www.lazarus-ide.org/)
 ![Supports Windows](https://img.shields.io/badge/support-Windows-F59E0B?logo=Windows)
 ![Supports Linux](https://img.shields.io/badge/support-Linux-F59E0B?logo=Linux)
-[![Version](https://img.shields.io/badge/version-1.2.0-8B5CF6.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.1-8B5CF6.svg)](CHANGELOG.md)
 ![No Dependencies](https://img.shields.io/badge/dependencies-none-10B981.svg)
 [![Documentation](https://img.shields.io/badge/Docs-Available-brightgreen.svg)](docs/)
 [![Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)]()
@@ -35,6 +35,7 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 | 🚨 **Strict loading** | Actionable file, line, key, and reason diagnostics (v1.2.0+) |
 | 🧭 **Typed schema validation** | Report all missing and invalid values together (v1.2.0+) |
 | 🛡️ **Safe serialization** | Atomic, escaped, load/save round trips (v1.2.0+) |
+| 🔨 **Reproducible examples** | Build every canonical example into `examples-bin/` (v1.2.1+) |
 | 🏷️ **Key prefixing** | Add prefixes like `APP_` to all loaded keys |
 | 🧹 **Zero memory leaks** | Uses advanced records — no manual `Free` calls! |
 | 📦 **Zero dependencies** | Only standard FPC units |
@@ -53,20 +54,16 @@ cp .env.example .env
 Copy-Item .env.example .env
 ```
 
-Compile and run the newcomer example with FPC:
+Build all canonical Lazarus examples and run the newcomer example:
 
 ```bash
-fpc -B "-Fusrc" "-FUexamples/hello-dotenv" examples/hello-dotenv/hello_dotenv.pas
-./examples/hello-dotenv/hello_dotenv
+bash ./build-examples.sh
+./examples-bin/hello_dotenv
 ```
 
-On Windows, run `examples\hello-dotenv\hello_dotenv.exe` for the second command.
-
-Or build the same program with Lazarus:
-
-```bash
-lazbuild --build-mode=Release examples/hello-dotenv/hello_dotenv.lpi
-./examples/hello-dotenv/hello_dotenv
+```powershell
+./build-examples.ps1
+.\examples-bin\hello_dotenv.exe
 ```
 
 Expected output:
@@ -79,7 +76,9 @@ Debug: TRUE
 
 For your own project, copy `src/DotEnv.pas` beside your program or add `src`
 to its unit search path, then add `DotEnv` to the `uses` clause. The complete
-starter is in [`examples/hello-dotenv`](examples/hello-dotenv/hello_dotenv.pas).
+starter is in [`examples/hello-dotenv`](examples/hello-dotenv/hello_dotenv.pas),
+and [`examples/README.md`](examples/README.md) defines the complete learning
+path. Files under `examples/` are the source of truth for runnable examples.
 
 ## 📖 `.env` File Format
 
@@ -285,7 +284,8 @@ begin
   DotEnvLoad;                              // Load .env
   DotEnvLoad('.env.local');                // Load specific file
   
-  WriteLn(DotEnvGet('DATABASE_URL'));      // Get value
+  WriteLn('Database configured: ',
+          DotEnvGet('DATABASE_URL') <> ''); // Report presence, not the URL
   WriteLn(DotEnvGet('PORT', '3000'));      // Get with default
   
   DotEnvSet('RUNTIME_VAR', 'value');       // Set at runtime
@@ -424,8 +424,13 @@ dotenv-fp/
 ├── examples/
 │   ├── hello-dotenv/       # Five-minute newcomer example
 │   ├── basic/              # Basic API tour
-│   └── advanced/           # Advanced features example
+│   ├── advanced/           # Advanced features example
+│   ├── environment-aware/  # Self-contained environment layering
+│   └── interactive-setup/  # Prompt, save, and template workflow
+├── examples-bin/           # Generated example binaries (gitignored)
 ├── docs/                   # Documentation
+├── build-examples.ps1      # Windows example build entrypoint
+├── build-examples.sh       # Linux/macOS example build entrypoint
 ├── .env.example            # Example .env file
 ├── CHANGELOG.md
 └── README.md

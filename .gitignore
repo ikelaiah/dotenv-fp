@@ -19,6 +19,7 @@ packagefiles.xml
 # Binary executables
 *.exe
 test_dir/
+/examples-bin/
 
 # Debug files
 *.dbg

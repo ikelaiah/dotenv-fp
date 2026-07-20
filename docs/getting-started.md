@@ -13,17 +13,20 @@ To try the included newcomer example from a repository checkout:
 
 ```bash
 cp .env.example .env
-fpc -B "-Fusrc" "-FUexamples/hello-dotenv" examples/hello-dotenv/hello_dotenv.pas
-./examples/hello-dotenv/hello_dotenv
+bash ./build-examples.sh
+./examples-bin/hello_dotenv
 ```
 
-In Windows PowerShell, use `Copy-Item .env.example .env`, then run
-`examples\hello-dotenv\hello_dotenv.exe`. Lazarus users can build the same
-example with:
+In Windows PowerShell:
 
-```bash
-lazbuild --build-mode=Release examples/hello-dotenv/hello_dotenv.lpi
+```powershell
+Copy-Item .env.example .env
+./build-examples.ps1
+.\examples-bin\hello_dotenv.exe
 ```
+
+The scripts compile all canonical Lazarus example projects in Release mode.
+See the [runnable example learning path](../examples/README.md).
 
 ### Option 1: Copy the Unit (Simplest)
 
