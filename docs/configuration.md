@@ -22,7 +22,7 @@ end;
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `Override` | `Boolean` | `False` | Override existing system environment variables |
+| `Override` | `Boolean` | `False` | Let loaded values shadow matching OS keys inside this instance |
 | `Interpolate` | `Boolean` | `True` | Enable `${VAR}` variable interpolation |
 | `Verbose` | `Boolean` | `False` | Print debug information with likely secrets redacted |
 | `Prefix` | `String` | `''` | Add prefix to all loaded key names |
@@ -32,18 +32,24 @@ end;
 
 **Default:** `False`
 
-When `False`, existing system environment variables are preserved. When `True`, values from `.env` files will override them.
+When `False`, a key already present in the operating-system environment wins.
+When `True`, a value loaded from a dotenv file can shadow that key inside the
+current `TDotEnv` instance. This option never modifies the operating-system
+environment itself.
 
 ```pascal
-// System has PORT=8080
+// Operating-system environment has APP_PORT=8080
 
+Options := TDotEnvOptions.Default;
 Options.Override := False;
+Env := TDotEnv.CreateWithOptions(Options);
 Env.Load;
-WriteLn(Env.Get('PORT'));  // Still '8080' from system
+WriteLn(Env.Get('APP_PORT'));  // Still '8080' from the OS
 
 Options.Override := True;
+Env := TDotEnv.CreateWithOptions(Options);
 Env.Load;
-WriteLn(Env.Get('PORT'));  // Now uses value from .env
+WriteLn(Env.Get('APP_PORT'));  // Uses the value loaded from .env
 ```
 
 **Use cases:**
@@ -63,11 +69,14 @@ API_ENDPOINT=${BASE_URL}/v1/users
 ```
 
 ```pascal
+Options := TDotEnvOptions.Default;
 Options.Interpolate := True;
+Env := TDotEnv.CreateWithOptions(Options);
 Env.Load;
 WriteLn(Env.Get('API_ENDPOINT'));  // 'https://api.example.com/v1/users'
 
 Options.Interpolate := False;
+Env := TDotEnv.CreateWithOptions(Options);
 Env.Load;
 WriteLn(Env.Get('API_ENDPOINT'));  // '${BASE_URL}/v1/users' (literal)
 ```
@@ -75,6 +84,9 @@ WriteLn(Env.Get('API_ENDPOINT'));  // '${BASE_URL}/v1/users' (literal)
 **Resolution order:**
 1. Variables defined earlier in the same `.env` file
 2. System environment variables
+
+Single-quoted values are always literal. In double-quoted values, use `\$` when
+a dollar sign must remain literal instead of starting interpolation.
 
 ## Verbose
 
@@ -84,11 +96,13 @@ When `True`, prints debug information during loading. Values for likely secret
 keys are replaced by `[REDACTED]`.
 
 ```pascal
+Options := TDotEnvOptions.Default;
 Options.Verbose := True;
+Env := TDotEnv.CreateWithOptions(Options);
 Env.Load;
 // Outputs:
 // DotEnv: Loaded DATABASE_PASSWORD=[REDACTED]
-// DotEnv: Loaded PORT=3000
+// DotEnv: Loaded APP_PORT=3000
 // ...
 ```
 
@@ -105,7 +119,9 @@ PORT=3000
 ```
 
 ```pascal
+Options := TDotEnvOptions.Default;
 Options.Prefix := 'APP_';
+Env := TDotEnv.CreateWithOptions(Options);
 Env.Load;
 
 // Variables are now:
@@ -137,14 +153,14 @@ var
 begin
   // Configure all options
   Options := TDotEnvOptions.Default;
-  Options.Override := True;       // Override system vars
+  Options.Override := True;       // Prefer loaded values inside this instance
   Options.Interpolate := True;    // Enable ${VAR} syntax
-  Options.Verbose := True;        // Debug output
+  Options.Verbose := True;        // Debug output with likely secrets redacted
   Options.Prefix := 'MYAPP_';     // Prefix all keys
   
   // Create with options and load
   Env := TDotEnv.CreateWithOptions(Options);
-  Env.Load('.env');
+  Env.LoadRequired('.env');
   Env.Load('.env.local');  // Override with local settings
   
   // Access prefixed variables
@@ -155,16 +171,29 @@ end.
 
 ## Environment-Specific Configuration
 
-A common pattern is to load multiple files:
+Use `LoadForEnvironment()` for the conventional `.env` plus
+`.env.{environment}` pattern:
+
+```pascal
+Env.LoadForEnvironment('development');
+
+// With no argument, APP_ENV is checked first, followed by NODE_ENV.
+Env.LoadForEnvironment;
+```
+
+Use `LoadMultiple()` when the application needs a custom order:
 
 ```pascal
 // Load base config, then environment-specific overrides
 Env.LoadMultiple([
   '.env',              // Base configuration
-  '.env.local',        // Local overrides (gitignored)
-  '.env.development'   // Environment-specific
+  '.env.development',  // Environment-specific
+  '.env.local'         // Machine-specific overrides (gitignored)
 ]);
 ```
+
+Both helpers are permissive and return whether at least one file loaded. Call
+`LoadRequired()` directly when a particular file is mandatory.
 
 **Recommended `.gitignore`:**
 ```gitignore

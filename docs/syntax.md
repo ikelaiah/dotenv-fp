@@ -8,13 +8,14 @@ This guide covers all the syntax features supported by dotenv-fp.
 # Simple key-value pairs
 KEY=value
 DATABASE_URL=postgresql://localhost/mydb
-PORT=3000
+APP_PORT=3000
 ```
 
 **Rules:**
 - Keys are case-sensitive (`PORT` ≠ `port`)
-- Keys can contain letters, numbers, and underscores
-- No spaces around the `=` sign
+- Keys must start with a letter or underscore
+- Remaining key characters may be letters, numbers, or underscores
+- Whitespace around the `=` sign is accepted and ignored
 - Values are trimmed of leading/trailing whitespace (unless quoted)
 
 ## Comments
@@ -31,11 +32,12 @@ DATABASE_URL=postgresql://localhost/mydb  # Inline comment
 
 ### Double Quotes
 
-Preserve spaces and allow escape sequences:
+Preserve spaces, allow interpolation, and process `\n`, `\r`, `\t`, `\\`,
+`\"`, and `\'` escape sequences. Use `\$` for a literal dollar sign.
 
 ```bash
 MESSAGE="Hello, World!"
-PATH="C:\Users\My Name\Documents"
+PATH="C:\\Users\\My Name\\Documents"
 MULTIWORD="This has   multiple   spaces"
 ```
 
@@ -50,12 +52,13 @@ TEMPLATE='Hello ${NAME}'  # ${NAME} stays literal
 
 ### Unquoted Values
 
-Simple values without special characters:
+Unquoted values support most characters, but outer whitespace is trimmed and
+`#` starts an inline comment:
 
 ```bash
-HOST=localhost
-PORT=3000
-DEBUG=true
+APP_HOST=localhost
+APP_PORT=3000
+APP_DEBUG=true
 ```
 
 ## Variable Interpolation
@@ -87,6 +90,9 @@ USER_CACHE=${USERPROFILE}/.cache
 LITERAL='${NOT_REPLACED}'  # Stays as '${NOT_REPLACED}'
 ```
 
+An empty `${}` reference resolves to an empty string. Use `\$` inside double
+quotes when interpolation-like text must remain literal.
+
 ## Multi-line Values
 
 Use quotes for values spanning multiple lines:
@@ -115,10 +121,11 @@ For shell compatibility, the `export` keyword is supported and ignored:
 
 ```bash
 export DATABASE_URL=postgresql://localhost/mydb
-export PORT=3000
+export APP_PORT=3000
 ```
 
-This allows the same `.env` file to be sourced in shell scripts:
+An `export` line can also be sourced by a compatible shell when its value is
+valid shell syntax:
 ```bash
 source .env
 echo $DATABASE_URL
@@ -171,7 +178,7 @@ The following are recognized as truthy/falsy:
 | `ON` | `OFF` |
 
 ```bash
-DEBUG=true
+APP_DEBUG=true
 FEATURE_ENABLED=yes
 USE_CACHE=1
 MAINTENANCE_MODE=off
@@ -197,12 +204,18 @@ REGEX='^\d+$'
 DOLLAR='$100'
 ```
 
-### Unquoted (Escape or Avoid)
+### Unquoted Values
 
 ```bash
-# Simple values only
-SIMPLE=no_special_chars
+# Most characters are accepted
+ENDPOINT=https://example.com/api
+
+# Quote values containing # or significant outer whitespace
+FRAGMENT="value#section"
 ```
+
+Backslashes do not escape inline comments in unquoted values. Quote the value
+when a literal `#` is required.
 
 ## Complete Example
 
@@ -217,9 +230,9 @@ APP_VERSION=1.0.0
 APP_TITLE="${APP_NAME} v${APP_VERSION}"
 
 # Server settings
-HOST=0.0.0.0
-PORT=3000
-DEBUG=true
+APP_HOST=0.0.0.0
+APP_PORT=3000
+APP_DEBUG=true
 
 # Database
 DATABASE_HOST=localhost
@@ -251,3 +264,5 @@ export SHELL_VAR=works_in_bash_too
 3. **Group related variables** — Use comments to organize sections
 4. **Use meaningful names** — `DATABASE_URL` not `DB`
 5. **Provide defaults in code** — Don't rely on `.env` for non-sensitive defaults
+6. **Namespace common keys** — Prefer `MYAPP_PORT` over collision-prone names such as `PORT`
+7. **Validate required values together** — Use `ValidateSchema()` or `ValidateSchemaRequired()` at startup

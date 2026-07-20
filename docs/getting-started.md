@@ -58,8 +58,8 @@ DATABASE_PORT=5432
 DATABASE_NAME=myapp
 
 # Application settings
-DEBUG=true
-LOG_LEVEL=info
+APP_DEBUG=true
+APP_LOG_LEVEL=info
 ```
 
 ## Basic Usage
@@ -75,48 +75,64 @@ uses
 var
   Env: TDotEnv;
 begin
-  // Create and load
   Env := TDotEnv.Create;
-  Env.LoadRequired;  // Actionable error if .env is missing or malformed
-  
-  // Read values
-  WriteLn('Host: ', Env.Get('DATABASE_HOST'));
-  WriteLn('Port: ', Env.GetInt('DATABASE_PORT', 5432));
-  WriteLn('Debug: ', Env.GetBool('DEBUG', False));
-  
-  // No need to free! Advanced records handle cleanup automatically.
+  try
+    Env.LoadRequired;  // Actionable error if .env is missing or malformed
+
+    WriteLn('Host: ', Env.Get('DATABASE_HOST'));
+    WriteLn('Port: ', Env.GetInt('DATABASE_PORT', 5432));
+    WriteLn('Debug: ', Env.GetBool('APP_DEBUG', False));
+  except
+    on E: EDotEnvException do
+    begin
+      WriteLn(StdErr, 'Configuration error: ', E.Message);
+      Halt(1);
+    end;
+  end;
+
+  // No need to free: advanced records handle cleanup automatically.
 end.
 ```
 
 ## Loading Different Files
 
 ```pascal
-// Load specific file
-Env.Load('.env.production');
+// Require one specific file
+Env.LoadRequired('.env.production');
 
-// Load multiple files (later files override earlier ones)
+// Load .env followed by .env.production
+Env.LoadForEnvironment('production');
+
+// Read APP_ENV, then NODE_ENV; load .env plus the detected file
+Env.LoadForEnvironment;
+
+// Custom permissive layering (later files override earlier ones)
 Env.LoadMultiple(['.env', '.env.local']);
 
 // Load from string (great for testing)
 Env.LoadFromString('KEY=value');
 ```
 
+`LoadForEnvironment()` and `LoadMultiple()` retain permissive loading semantics.
+Use `LoadRequired()` when a particular file must exist and be syntactically
+valid.
+
 ## Using Default Values
 
-Always provide defaults for optional configuration:
+Provide explicit defaults for optional configuration:
 
 ```pascal
 // String with default
-Host := Env.Get('HOST', 'localhost');
+Host := Env.Get('APP_HOST', 'localhost');
 
 // Integer with default
-Port := Env.GetInt('PORT', 3000);
+Port := Env.GetInt('APP_PORT', 3000);
 
 // Boolean with default
-Debug := Env.GetBool('DEBUG', False);
+Debug := Env.GetBool('APP_DEBUG', False);
 
 // Float with default
-Rate := Env.GetFloat('RATE', 0.5);
+Rate := Env.GetFloat('APP_RATE', 0.5);
 ```
 
 ## Required Values
@@ -125,15 +141,15 @@ For configuration that must exist, validate all keys and types together:
 
 ```pascal
 Env.ValidateSchemaRequired([
-  TDotEnvSchemaItem.Create('SECRET_KEY'),
-  TDotEnvSchemaItem.Create('PORT', dvkInteger),
-  TDotEnvSchemaItem.Create('DEBUG', dvkBoolean)
+  TDotEnvSchemaItem.Create('DATABASE_HOST'),
+  TDotEnvSchemaItem.Create('DATABASE_PORT', dvkInteger),
+  TDotEnvSchemaItem.Create('APP_DEBUG', dvkBoolean)
 ]);
 ```
 
 ## Global Helper Functions
 
-For simple scripts:
+For simple scripts where a missing `.env` file is acceptable:
 
 ```pascal
 uses DotEnv;
@@ -141,8 +157,8 @@ uses DotEnv;
 begin
   DotEnvLoad;  // Load .env
   
-  WriteLn(DotEnvGet('DATABASE_URL'));
-  WriteLn(DotEnvGet('PORT', '3000'));
+  WriteLn(DotEnvGet('APP_NAME', 'Application'));
+  WriteLn(DotEnvGet('APP_PORT', '3000'));
 end.
 ```
 

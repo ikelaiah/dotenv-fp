@@ -42,13 +42,21 @@ TStringDynArray = array of AnsiString;
 
 ### TDotEnvValueKind and TDotEnvSchemaItem
 
-`TDotEnvSchemaItem` describes a required value for aggregate validation.
+`TDotEnvSchemaItem` describes one required value and its expected type for
+aggregate validation. `dvkString` is the default.
 
 ```pascal
 TDotEnvValueKind = (dvkString, dvkInteger, dvkBoolean, dvkFloat);
 
-Rule := TDotEnvSchemaItem.Create('PORT', dvkInteger);
+TDotEnvSchemaItem = record
+  Key: string;
+  ValueKind: TDotEnvValueKind;
+  class function Create(const AKey: string;
+    AValueKind: TDotEnvValueKind = dvkString): TDotEnvSchemaItem; static;
+end;
 ```
+
+All schema entries are required and must contain a non-empty value.
 
 ## TDotEnv Record
 
@@ -127,6 +135,16 @@ function LoadRequired(const APath: string = '.env'): Boolean;
 ```
 
 **Raises:** `EDotEnvFileNotFound`, `EDotEnvParseError`, or `EDotEnvException`
+
+**Example:**
+```pascal
+try
+  Env.LoadRequired('.env');
+except
+  on E: EDotEnvException do
+    WriteLn(StdErr, 'Configuration error: ', E.Message);
+end;
+```
 
 #### `LoadFromStream`
 
@@ -301,6 +319,8 @@ Gets a required float value.
 function GetFloatRequired(const AKey: string): Double;
 ```
 
+**Raises:** `EDotEnvMissingKey` or `EDotEnvParseError`
+
 ### Array Getter
 
 #### `GetArray`
@@ -428,6 +448,17 @@ function ValidateSchema(const ASchema: array of TDotEnvSchemaItem;
   out AErrors: TStringDynArray): Boolean;
 ```
 
+**Example:**
+```pascal
+if not Env.ValidateSchema([
+  TDotEnvSchemaItem.Create('DATABASE_URL'),
+  TDotEnvSchemaItem.Create('APP_PORT', dvkInteger),
+  TDotEnvSchemaItem.Create('APP_DEBUG', dvkBoolean)
+], Errors) then
+  for I := 0 to High(Errors) do
+    WriteLn('  - ', Errors[I]);
+```
+
 #### `ValidateSchemaRequired`
 
 Raises one `EDotEnvValidationError` containing every missing or incorrectly
@@ -435,6 +466,15 @@ typed value.
 
 ```pascal
 procedure ValidateSchemaRequired(const ASchema: array of TDotEnvSchemaItem);
+```
+
+**Example:**
+```pascal
+Env.ValidateSchemaRequired([
+  TDotEnvSchemaItem.Create('DATABASE_URL'),
+  TDotEnvSchemaItem.Create('APP_PORT', dvkInteger),
+  TDotEnvSchemaItem.Create('APP_DEBUG', dvkBoolean)
+]);
 ```
 
 ### Environment Methods
@@ -449,7 +489,8 @@ procedure SetToEnv(const AKey, AValue: string);
 
 #### `GetFromEnv`
 
-Gets a value directly from system environment.
+Gets a value directly from the operating-system environment, bypassing values
+loaded into the `TDotEnv` instance.
 
 ```pascal
 function GetFromEnv(const AKey: string; const ADefault: string = ''): string;
@@ -468,8 +509,8 @@ function Save(const APath: string = '.env'): Boolean;
 
 #### `GenerateExample`
 
-Creates an example file that retains keys, comments, and layout while removing
-values.
+Creates an example file that retains keys, comments, and blank-line
+organization while removing values.
 
 ```pascal
 function GenerateExample(const ASourcePath: string = '.env';
@@ -491,11 +532,14 @@ Configuration options for loading.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `Override` | `Boolean` | `False` | Override existing environment variables |
+| `Override` | `Boolean` | `False` | Let loaded values shadow matching OS environment keys inside this instance |
 | `Interpolate` | `Boolean` | `True` | Enable `${VAR}` interpolation |
 | `Encoding` | `string` | `'UTF-8'` | Reserved and currently ignored; use UTF-8 files |
 | `Verbose` | `Boolean` | `False` | Print debug information with likely secrets redacted |
 | `Prefix` | `string` | `''` | Prefix for all loaded keys |
+
+`Override` does not modify the operating-system environment. It only controls
+which value is visible through the current `TDotEnv` instance.
 
 ### Methods
 
@@ -539,8 +583,8 @@ procedure DotEnvSet(const AKey, AValue: string);
 ```pascal
 begin
   DotEnvLoad;
-  WriteLn(DotEnvGet('DATABASE_URL'));
-  WriteLn(DotEnvGet('PORT', '3000'));
+  WriteLn(DotEnvGet('APP_NAME', 'Application'));
+  WriteLn(DotEnvGet('APP_PORT', '3000'));
 end.
 ```
 
