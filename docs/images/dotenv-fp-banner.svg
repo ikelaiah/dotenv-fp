@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500" role="img" aria-labelledby="title desc">
+  <title id="title">dotenv-fp — environment configuration for Free Pascal</title>
+  <desc id="desc">A sample .env configuration file flows into a Free Pascal application, illustrating simple, dependency-free environment configuration.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#071b19"/><stop offset=".55" stop-color="#0b2527"/><stop offset="1" stop-color="#101c31"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#277d68" stop-opacity=".32"/><stop offset="1" stop-color="#277d68" stop-opacity="0"/></radialGradient>
+    <linearGradient id="mint" x2="1"><stop stop-color="#9ae6b4"/><stop offset="1" stop-color="#54d6c3"/></linearGradient>
+    <linearGradient id="card" x2="1" y2="1"><stop stop-color="#163332"/><stop offset="1" stop-color="#102326"/></linearGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="#91cbb0" stroke-opacity=".05"/></pattern>
+    <clipPath id="frame"><rect x="1" y="1" width="1498" height="498" rx="24"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)"><path fill="url(#bg)" d="M0 0H1500V500H0z"/><ellipse cx="1120" cy="260" rx="480" ry="340" fill="url(#glow)"/><path d="M780 0H1500V500H780z" fill="url(#grid)"/></g>
+  <rect x="1" y="1" width="1498" height="498" rx="24" fill="none" stroke="#31504a"/>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <g transform="translate(76 70)"><path d="M4 26C4 10 18 2 38 4C36 24 26 38 10 38C3 38 0 33 4 26Z" fill="none" stroke="#8de0a5" stroke-width="2.5"/><path d="M8 35L28 15" fill="none" stroke="#8de0a5" stroke-width="2" stroke-linecap="round"/><text x="58" y="29" fill="#b4cbbc" font-size="17" font-weight="600" letter-spacing="3">FREE PASCAL CONFIGURATION</text></g>
+    <text x="74" y="218" fill="#f0faf4" font-size="94" font-weight="700" letter-spacing="-3">dotenv<tspan fill="url(#mint)">-fp</tspan></text>
+    <text x="80" y="276" fill="#a7e8bb" font-size="30" font-weight="600">Environment variables, made simple.</text>
+    <text x="80" y="318" fill="#a9c3bd" font-size="20">Load, validate, and save .env files — with zero dependencies.</text>
+    <g transform="translate(80 374)" font-size="16" font-weight="600">
+      <rect width="142" height="36" rx="18" fill="#13302e" stroke="#31594f"/><text x="71" y="24" text-anchor="middle" fill="#a5e6bc">Free Pascal</text>
+      <rect x="154" width="158" height="36" rx="18" fill="#13302e" stroke="#31594f"/><text x="233" y="24" text-anchor="middle" fill="#a5e6bc">Zero dependencies</text>
+      <rect x="324" width="138" height="36" rx="18" fill="#13302e" stroke="#31594f"/><text x="393" y="24" text-anchor="middle" fill="#a5e6bc">Type-safe</text>
+    </g>
+  </g>
+  <g transform="translate(820 96)">
+    <rect x="0" y="12" width="340" height="292" rx="18" fill="#061311" opacity=".45"/>
+    <rect width="340" height="292" rx="18" fill="url(#card)" stroke="#42756a"/>
+    <path d="M1 44H339" stroke="#31544e"/><g fill="#6f9b89"><circle cx="22" cy="22" r="4"/><circle cx="39" cy="22" r="4"/><circle cx="56" cy="22" r="4"/></g>
+    <path d="M34 80V245" stroke="#294942" stroke-width="2"/>
+    <g font-family="Cascadia Code, Consolas, monospace" font-size="19">
+      <text x="20" y="120" fill="#668878">01</text><text x="70" y="120" fill="#b9d9c3">APP_ENV</text><text x="178" y="120" fill="#75d7bd">=</text><text x="198" y="120" fill="#d6c486">production</text>
+      <text x="20" y="164" fill="#668878">02</text><text x="70" y="164" fill="#b9d9c3">LOG_LEVEL</text><text x="178" y="164" fill="#75d7bd">=</text><text x="198" y="164" fill="#d6c486">info</text>
+      <text x="20" y="208" fill="#668878">03</text><text x="70" y="208" fill="#b9d9c3">FEATURE_X</text><text x="178" y="208" fill="#75d7bd">=</text><text x="198" y="208" fill="#d6c486">true</text>
+    </g>
+    <rect x="26" y="253" width="108" height="26" rx="7" fill="#122c27" stroke="#31594f"/><text x="80" y="271" text-anchor="middle" fill="#9bdcb2" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">.env file</text>
+  </g>
+  <g fill="none" stroke="#77d5a9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1160 240H1215"/><path d="M1204 231L1215 240L1204 249"/>
+  </g>
+  <g transform="translate(1235 170)">
+    <rect width="188" height="142" rx="18" fill="url(#card)" stroke="#42756a"/>
+    <path d="M48 49L63 62L48 75M76 75H99" fill="none" stroke="#8de0bd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M38 99H149" stroke="#467164" stroke-width="4" stroke-linecap="round"/><text x="94" y="126" text-anchor="middle" fill="#b3cfc3" font-family="Segoe UI, Arial, sans-serif" font-size="15">Free Pascal app</text>
+  </g>
+  <circle cx="1332" cy="355" r="4" fill="#9ae6b4" opacity=".7"/><circle cx="1270" cy="127" r="3" fill="#9ae6b4" opacity=".6"/>
+</svg>

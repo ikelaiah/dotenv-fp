@@ -1,3 +1,5 @@
+![dotenv-fp banner](docs/images/dotenv-fp-banner.svg)
+
 # 🌿 dotenv-fp
 
 > **Load environment variables from `.env` files in Free Pascal — the easy way!**
