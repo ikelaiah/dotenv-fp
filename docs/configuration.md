@@ -86,7 +86,9 @@ WriteLn(Env.Get('API_ENDPOINT'));  // '${BASE_URL}/v1/users' (literal)
 2. System environment variables
 
 Single-quoted values are always literal. In double-quoted values, use `\$` when
-a dollar sign must remain literal instead of starting interpolation.
+a dollar sign must remain literal instead of starting interpolation. `\$` is
+read as `$` even when `Interpolate` is `False`, so files written by `Save()`
+load unchanged.
 
 ## Verbose
 
@@ -131,6 +133,9 @@ WriteLn(Env.Get('APP_PORT'));  // '3000'
 // Original names don't work:
 WriteLn(Env.Get('HOST'));  // '' (empty)
 ```
+
+Interpolation uses the unprefixed name: with `URL=${HOST}:${PORT}` in the
+same file, `APP_URL` becomes `localhost:3000`.
 
 **Use cases:**
 - Loading multiple `.env` files without conflicts

@@ -63,7 +63,7 @@
   
   LICENSE: MIT
   AUTHOR: ikelaiah
-  VERSION: 1.2.1
+  VERSION: 1.2.2
   ==========================================================================
 *)
 unit DotEnv;
@@ -244,11 +244,11 @@ type
        These methods handle the complex task of parsing .env file syntax.
        ----------------------------------------------------------------------- *)
     
-    (* Parses a single line from .env file into key and value.
-       Handles: comments, export prefix, quoted values.
-       Returns True if line contains a valid key=value pair. *)
-    function ParseLine(const ALine: string; out AKey, AValue: string): Boolean;
-    
+    (* Parses every KEY=value entry in ALines into FValues.
+       AFromFile: when True, honours Override and Verbose (file loading);
+       in-memory sources always store their values. *)
+    procedure ParseLines(const ALines: TStringList; AFromFile: Boolean);
+
     (* Processes a raw value string, handling quotes and escape sequences.
        AQuoteChar: #0 for unquoted, '"' for double-quoted, '''' for single-quoted.
        For double quotes: processes \n, \r, \t, \\, \" escape sequences.
@@ -398,6 +398,7 @@ type
        ===================================================================== *)
     
     (* Gets a floating-point value by key.
+       Accepts '.' as decimal separator on every locale (and the locale's own).
        Returns ADefault if key not found or value is not a valid number.
        Example: Rate := Env.GetFloat('TAX_RATE', 0.07); *)
     function GetFloat(const AKey: string; const ADefault: Double = 0.0): Double;
@@ -673,6 +674,19 @@ begin
   Result := Result + '"';
 end;
 
+(* Parses a float using '.' as the decimal separator first, so config files
+   behave the same on every locale, then falls back to the current locale. *)
+function TryParseEnvFloat(const AText: string; out AValue: Double): Boolean;
+var
+  Invariant: TFormatSettings;
+begin
+  Invariant := DefaultFormatSettings;
+  Invariant.DecimalSeparator := '.';
+  Invariant.ThousandSeparator := #0;
+  Result := TryStrToFloat(AText, AValue, Invariant) or
+            TryStrToFloat(AText, AValue);
+end;
+
 function IsSensitiveEnvKey(const AKey: string): Boolean;
 var
   UpperKey: string;
@@ -688,7 +702,16 @@ begin
 end;
 
 function ReplaceFileFromTemp(const ATempPath, ADestPath: string): Boolean;
+{$IFDEF UNIX}
+var
+  Info: Stat;
+{$ENDIF}
 begin
+  {$IFDEF UNIX}
+  // Keep the destination's permissions (e.g. 0600 on a secrets file).
+  if fpStat(PChar(ADestPath), Info) = 0 then
+    fpChmod(PChar(ATempPath), Info.st_mode and &7777);
+  {$ENDIF}
   {$IFDEF MSWINDOWS}
   Result := MoveFileEx(PChar(ATempPath), PChar(ADestPath),
     MOVEFILE_REPLACE_EXISTING);
@@ -1037,8 +1060,13 @@ begin
     Exit('');
 
   (* First check our loaded values - allows ${VAR} to reference
-     variables defined earlier in the same .env file *)
-  Idx := FValues.Find(AVarName);
+     variables defined earlier in the same .env file. With a Prefix, those
+     earlier keys are stored prefixed, so try that name first. *)
+  Idx := -1;
+  if FOptions.Prefix <> '' then
+    Idx := FValues.Find(FOptions.Prefix + AVarName);
+  if Idx < 0 then
+    Idx := FValues.Find(AVarName);
   if Idx >= 0 then
     Result := FValues.GetPair(Idx).Value
   else
@@ -1073,13 +1101,13 @@ var
   VarName: string;
   Ch: Char;
 begin
-  // Skip interpolation if disabled in options
+  // Interpolation disabled: only unescape \$ so Save() output round-trips.
   if not FOptions.Interpolate then
   begin
-    Result := AValue;
+    Result := StringReplace(AValue, '\$', '$', [rfReplaceAll]);
     Exit;
   end;
-  
+
   Result := '';
   I := 1;
   
@@ -1141,69 +1169,77 @@ begin
 end;
 
 (*
-  ParseLine - Parses a single line from an .env file
+  ParseLines - Parses KEY=value entries shared by Load and LoadFromString
   -------------------------------------------------------------------------
-  This method handles the parsing of a single KEY=value line.
-  It handles various formats:
-  - Simple: KEY=value
-  - With export: export KEY=value  
-  - With quotes: KEY="value" or KEY='value'
-  - With comments: KEY=value # comment
-  
-  Parameters:
-    ALine: The raw line from the file
-    AKey: Output - the parsed key name (with prefix if configured)
-    AValue: Output - the parsed and processed value
-  
-  Returns True if line was parsed successfully, False for:
-  - Empty lines
-  - Comment lines (starting with #)
-  - Lines without = sign
-  - Lines with empty key
+  Handles comments, the export prefix, quoted and multi-line values,
+  interpolation and key prefixing. When AFromFile is True, keys already set
+  in the OS environment are skipped unless Override is enabled, and Verbose
+  output is printed.
 *)
-function TDotEnv.ParseLine(const ALine: string; out AKey, AValue: string): Boolean;
+procedure TDotEnv.ParseLines(const ALines: TStringList; AFromFile: Boolean);
 var
-  Line, TrimmedLine: string;
-  EqPos: Integer;
-  RawValue: string;
+  I, EqPos: Integer;
+  Key, Value, RawValue, TrimmedLine: string;
   QuoteChar: Char;
 begin
-  Result := False;
-  AKey := '';
-  AValue := '';
-  
-  Line := ALine;
-  TrimmedLine := Trim(Line);
-  
-  // Skip empty lines and full-line comments
-  if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
-    Exit;
-  
-  (* Handle shell-compatible 'export' prefix
-     This allows .env files to also be sourced in bash *)
-  if AnsiStartsStr('export ', TrimmedLine) then
-    TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
-  
-  // Find the = separator between key and value
-  EqPos := Pos('=', TrimmedLine);
-  if EqPos = 0 then
-    Exit;  // No = sign - invalid line
-  
-  // Extract the key (everything before =)
-  AKey := Trim(Copy(TrimmedLine, 1, EqPos - 1));
-  if AKey = '' then
-    Exit;  // Empty key - invalid line
-  
-  // Apply prefix if configured (e.g., 'APP_' + 'KEY' = 'APP_KEY')
-  if FOptions.Prefix <> '' then
-    AKey := FOptions.Prefix + AKey;
-  
-  // Extract and parse the value (everything after =)
-  RawValue := Copy(TrimmedLine, EqPos + 1, Length(TrimmedLine));
-  RawValue := DetectQuote(RawValue, QuoteChar);
-  AValue := ParseValue(RawValue, QuoteChar);
-  
-  Result := True;
+  I := 0;
+  while I < ALines.Count do
+  begin
+    TrimmedLine := Trim(ALines[I]);
+    Inc(I);
+
+    // Skip empty lines and full-line comments
+    if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
+      Continue;
+
+    // Handle shell-compatible 'export' prefix
+    if AnsiStartsStr('export ', TrimmedLine) then
+      TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
+
+    // Lines without '=' or with an empty key are ignored
+    EqPos := Pos('=', TrimmedLine);
+    if EqPos = 0 then
+      Continue;
+    Key := Trim(Copy(TrimmedLine, 1, EqPos - 1));
+    if Key = '' then
+      Continue;
+
+    if FOptions.Prefix <> '' then
+      Key := FOptions.Prefix + Key;
+
+    RawValue := Copy(TrimmedLine, EqPos + 1, Length(TrimmedLine));
+    RawValue := DetectQuote(RawValue, QuoteChar);
+
+    // Quoted with no closing quote on this line: read following lines.
+    // ParseMultiLine takes the index of the current line and advances it.
+    if (QuoteChar <> #0) and (FindClosingQuote(RawValue, QuoteChar) = 0) then
+    begin
+      Dec(I);
+      Value := ParseMultiLine(ALines, I, RawValue, QuoteChar);
+      Inc(I);
+    end
+    else
+      Value := ParseValue(RawValue, QuoteChar);
+
+    // Single quotes are literal; other forms support interpolation.
+    if QuoteChar <> '''' then
+      Value := InterpolateValue(Value);
+
+    // Don't shadow existing OS environment variables unless asked to
+    if AFromFile and not FOptions.Override and
+       (SysUtils.GetEnvironmentVariable(Key) <> '') then
+      Continue;
+
+    FValues.Add(Key, Value);
+
+    if AFromFile and FOptions.Verbose then
+    begin
+      if IsSensitiveEnvKey(Key) then
+        WriteLn('DotEnv: Loaded ', Key, '=[REDACTED]')
+      else
+        WriteLn('DotEnv: Loaded ', Key, '=', Value);
+    end;
+  end;
 end;
 
 procedure TDotEnv.ValidateFileSyntax(const AFullPath: string);
@@ -1313,20 +1349,16 @@ end;
 function TDotEnv.Load(const APath: string): Boolean;
 var
   Lines: TStringList;
-  I: Integer;
-  Key, Value, RawValue, TrimmedLine: string;
-  QuoteChar: Char;
-  EqPos: Integer;
   FullPath: string;
 begin
   Result := False;
-  
+
   // Default to '.env' if no path specified
   if APath = '' then
     FullPath := '.env'
   else
     FullPath := APath;
-  
+
   // Check if file exists - return False if not (no exception)
   if not FileExists(FullPath) then
   begin
@@ -1334,97 +1366,19 @@ begin
       WriteLn('DotEnv: File not found: ', FullPath);
     Exit;
   end;
-  
-  // Read the entire file into a TStringList for line-by-line processing
+
   Lines := TStringList.Create;
   try
     Lines.LoadFromFile(FullPath);
-    
-    // Process each line
-    I := 0;
-    while I < Lines.Count do
-    begin
-      TrimmedLine := Trim(Lines[I]);
-      
-      // Skip empty lines and full-line comments
-      if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
-      begin
-        Inc(I);
-        Continue;
-      end;
-      
-      // Handle shell-compatible 'export' prefix
-      if AnsiStartsStr('export ', TrimmedLine) then
-        TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
-      
-      // Find '=' sign - required for valid KEY=value format
-      EqPos := Pos('=', TrimmedLine);
-      if EqPos = 0 then
-      begin
-        Inc(I);
-        Continue;
-      end;
-      
-      // Extract the key name
-      Key := Trim(Copy(TrimmedLine, 1, EqPos - 1));
-      if Key = '' then
-      begin
-        Inc(I);
-        Continue;
-      end;
-      
-      // Apply key prefix if configured
-      if FOptions.Prefix <> '' then
-        Key := FOptions.Prefix + Key;
-      
-      // Extract and parse the value
-      RawValue := Copy(TrimmedLine, EqPos + 1, Length(TrimmedLine));
-      RawValue := DetectQuote(RawValue, QuoteChar);
-      
-      // Check for multi-line value (quoted but no closing quote on this line)
-      if (QuoteChar <> #0) and
-         (FindClosingQuote(RawValue, QuoteChar) = 0) then
-        Value := ParseMultiLine(Lines, I, RawValue, QuoteChar)
-      else
-        Value := ParseValue(RawValue, QuoteChar);
-      
-      // Single quotes are literal; other forms support interpolation.
-      if QuoteChar <> '''' then
-        Value := InterpolateValue(Value);
-      
-      // Check if we should skip this key (don't override existing env vars)
-      if not FOptions.Override then
-      begin
-        if SysUtils.GetEnvironmentVariable(Key) <> '' then
-        begin
-          Inc(I);
-          Continue;
-        end;
-      end;
-      
-      // Store the key-value pair
-      FValues.Add(Key, Value);
-      
-      // Verbose output for debugging
-      if FOptions.Verbose then
-      begin
-        if IsSensitiveEnvKey(Key) then
-          WriteLn('DotEnv: Loaded ', Key, '=[REDACTED]')
-        else
-          WriteLn('DotEnv: Loaded ', Key, '=', Value);
-      end;
-      
-      Inc(I);
-    end;
-    
+    ParseLines(Lines, True);
+
     // Track which files have been loaded successfully
     SetLength(FLoadedFiles, Length(FLoadedFiles) + 1);
     FLoadedFiles[High(FLoadedFiles)] := FullPath;
-    
+
     FLoaded := True;
     Result := True;
   finally
-    // Always free the TStringList, even if an exception occurs
     Lines.Free;
   end;
 end;
@@ -1485,74 +1439,12 @@ end;
 function TDotEnv.LoadFromString(const AContent: string): Boolean;
 var
   Lines: TStringList;
-  I: Integer;
-  Key, Value, RawValue, TrimmedLine: string;
-  QuoteChar: Char;
-  EqPos: Integer;
 begin
-  Result := False;
-  
-  // Parse string into lines using TStringList
   Lines := TStringList.Create;
   try
     Lines.Text := AContent;
-    
-    // Process each line - same logic as Load
-    I := 0;
-    while I < Lines.Count do
-    begin
-      TrimmedLine := Trim(Lines[I]);
-      
-      // Skip empty lines and comments
-      if (TrimmedLine = '') or (TrimmedLine[1] = '#') then
-      begin
-        Inc(I);
-        Continue;
-      end;
-      
-      // Handle 'export' prefix
-      if AnsiStartsStr('export ', TrimmedLine) then
-        TrimmedLine := Trim(Copy(TrimmedLine, 8, Length(TrimmedLine)));
-      
-      // Find '=' sign
-      EqPos := Pos('=', TrimmedLine);
-      if EqPos = 0 then
-      begin
-        Inc(I);
-        Continue;
-      end;
-      
-      // Extract key
-      Key := Trim(Copy(TrimmedLine, 1, EqPos - 1));
-      if Key = '' then
-      begin
-        Inc(I);
-        Continue;
-      end;
-      
-      // Apply prefix if set
-      if FOptions.Prefix <> '' then
-        Key := FOptions.Prefix + Key;
-      
-      // Extract and parse value
-      RawValue := Copy(TrimmedLine, EqPos + 1, Length(TrimmedLine));
-      RawValue := DetectQuote(RawValue, QuoteChar);
-      
-      // Check for multi-line value
-      if (QuoteChar <> #0) and
-         (FindClosingQuote(RawValue, QuoteChar) = 0) then
-        Value := ParseMultiLine(Lines, I, RawValue, QuoteChar)
-      else
-        Value := ParseValue(RawValue, QuoteChar);
-      
-      // Single quotes are literal; other forms support interpolation.
-      if QuoteChar <> '''' then
-        Value := InterpolateValue(Value);
-      
-      FValues.Add(Key, Value);
-      Inc(I);
-    end;
-    
+    // In-memory sources always store values (Override is not applied).
+    ParseLines(Lines, False);
     FLoaded := True;
     Result := True;
   finally
@@ -1772,8 +1664,8 @@ begin
     Result := ADefault
   else
   begin
-    // TryStrToFloat handles locale-specific decimal separators
-    if not TryStrToFloat(S, Result) then
+    // Accepts "." on every locale, then the locale decimal separator
+    if not TryParseEnvFloat(S, Result) then
       Result := ADefault;
   end;
 end;
@@ -1783,7 +1675,7 @@ var
   S: string;
 begin
   S := GetRequired(AKey);
-  if not TryStrToFloat(S, Result) then
+  if not TryParseEnvFloat(S, Result) then
     raise EDotEnvParseError.CreateFmt('Cannot convert %s to float: %s', [AKey, S]);
 end;
 
@@ -1810,7 +1702,15 @@ begin
     SetLength(Result, 0);
     Exit;
   end;
-  
+
+  // No separator: return the whole value instead of indexing an empty string
+  if ASeparator = '' then
+  begin
+    SetLength(Result, 1);
+    Result[0] := Trim(S);
+    Exit;
+  end;
+
   // Use TStringList's built-in delimiter parsing
   Parts := TStringList.Create;
   try
@@ -1993,7 +1893,7 @@ begin
                      (Normalized = 'on') or (Normalized = 'off');
           end;
         dvkFloat:
-          Valid := TryStrToFloat(Value, ParsedFloat);
+          Valid := TryParseEnvFloat(Value, ParsedFloat);
       end;
 
       if not Valid then

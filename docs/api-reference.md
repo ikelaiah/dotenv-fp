@@ -181,6 +181,9 @@ function LoadFromString(const AContent: string): Boolean;
 Env.LoadFromString('KEY=value' + LineEnding + 'OTHER=test');
 ```
 
+`LoadFromString` and `LoadFromStream` always store parsed values; `Override`
+only applies to file loading.
+
 #### `LoadMultiple`
 
 Loads multiple files in order (later files override earlier ones).
@@ -311,6 +314,9 @@ Rate := Env.GetFloat('RATE');            // Returns 0.0 if missing/invalid
 Rate := Env.GetFloat('RATE', 0.5);       // Returns 0.5 if missing/invalid
 ```
 
+`.` is accepted as the decimal separator on every locale; the current
+locale's separator is also accepted.
+
 #### `GetFloatRequired`
 
 Gets a required float value.
@@ -339,6 +345,9 @@ Hosts := Env.GetArray('HOSTS');              // Split by comma
 // TAGS=web;api;backend
 Tags := Env.GetArray('TAGS', ';');           // Split by semicolon
 ```
+
+Only the first character of `ASeparator` is used. An empty separator returns
+the whole trimmed value as a single element.
 
 ### Utility Methods
 

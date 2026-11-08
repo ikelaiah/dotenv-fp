@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-08
+
+### Fixed
+
+- `${VAR}` and `$VAR` references to keys defined earlier in the same source
+  now resolve when `Options.Prefix` is set
+- Values written by `Save()` that contain `$` no longer load with a stray `\`
+  when `Options.Interpolate` is `False`
+- `GetFloat()`, `GetFloatRequired()` and `dvkFloat` schema checks accept `.`
+  as the decimal separator on every locale; the locale separator still works
+- `GetArray()` with an empty separator returns the whole value instead of
+  raising a range error or access violation
+- On Unix, `Save()` keeps the permissions of the file it replaces (for
+  example `0600`) instead of resetting them through the temporary file
+
+### Changed
+
+- `Load()` and `LoadFromString()` share one parser; behaviour is unchanged
+- Removed the unused private `ParseLine()` method
+
 ## [1.2.1] - 2026-07-21
 
 ### Added

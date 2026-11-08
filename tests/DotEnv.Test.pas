@@ -5,7 +5,8 @@ unit DotEnv.Test;
 interface
 
 uses
-  Classes, SysUtils, Types, fpcunit, testregistry, DotEnv;
+  Classes, SysUtils, Types, fpcunit, testregistry, DotEnv
+  {$IFDEF UNIX}, BaseUnix{$ENDIF};
 
 type
   TTestDotEnv = class(TTestCase)
@@ -142,6 +143,13 @@ type
     procedure Test119_LoadFromString_MultilineEscapedQuote;
     procedure Test120_ValidateSchemaRequired_ReturnsAllErrors;
     procedure Test121_VerboseMode_RedactsSecrets;
+
+    // v1.2.2 fixes
+    procedure Test122_Prefix_InterpolatesSameFileReference;
+    procedure Test123_Save_RoundTripsDollarWithInterpolationDisabled;
+    procedure Test124_GetFloat_AcceptsDotUnderCommaLocale;
+    procedure Test125_GetArray_EmptySeparatorReturnsWholeValue;
+    procedure Test126_Save_PreservesUnixFileMode;
   end;
 
 implementation
@@ -1548,6 +1556,103 @@ begin
     if FileExists(CaptureFile) then
       DeleteFile(CaptureFile);
   end;
+end;
+
+procedure TTestDotEnv.Test122_Prefix_InterpolatesSameFileReference;
+var
+  Options: TDotEnvOptions;
+begin
+  Options := TDotEnvOptions.Default;
+  Options.Prefix := 'APP_';
+  FEnv := TDotEnv.CreateWithOptions(Options);
+  FEnv.LoadFromString('DOTENV_TEST_HOST=db' + LineEnding +
+    'DOTENV_TEST_URL=${DOTENV_TEST_HOST}:5432/$DOTENV_TEST_HOST');
+  CheckEquals('db:5432/db', FEnv.Get('APP_DOTENV_TEST_URL'),
+    'Prefixed keys resolve references to earlier keys in the same source');
+end;
+
+procedure TTestDotEnv.Test123_Save_RoundTripsDollarWithInterpolationDisabled;
+const
+  TestFile = 'test_save_dollar.env';
+var
+  Options: TDotEnvOptions;
+  Loaded: TDotEnv;
+begin
+  try
+    FEnv.SetToEnv('DOTENV_TEST_PRICE', 'cost $5 ${X} \$Y');
+    CheckTrue(FEnv.Save(TestFile), 'Fixture saves');
+    Options := TDotEnvOptions.Default;
+    Options.Interpolate := False;
+    Loaded := TDotEnv.CreateWithOptions(Options);
+    CheckTrue(Loaded.Load(TestFile), 'Fixture loads');
+    CheckEquals('cost $5 ${X} \$Y', Loaded.Get('DOTENV_TEST_PRICE'),
+      'Escaped dollar signs round-trip when interpolation is disabled');
+  finally
+    if FileExists(TestFile) then
+      DeleteFile(TestFile);
+  end;
+end;
+
+procedure TTestDotEnv.Test124_GetFloat_AcceptsDotUnderCommaLocale;
+var
+  SavedSeparator: Char;
+  Schema: array[0..0] of TDotEnvSchemaItem;
+  Errors: TStringDynArray;
+begin
+  SavedSeparator := DefaultFormatSettings.DecimalSeparator;
+  DefaultFormatSettings.DecimalSeparator := ',';
+  try
+    FEnv.LoadFromString('DOTENV_TEST_RATE=0.07' + LineEnding +
+      'DOTENV_TEST_LOCAL_RATE=0,5');
+    CheckEquals(0.07, FEnv.GetFloat('DOTENV_TEST_RATE', -1), 1e-9,
+      'Dot decimal parses regardless of locale');
+    CheckEquals(0.07, FEnv.GetFloatRequired('DOTENV_TEST_RATE'), 1e-9,
+      'Required getter parses dot decimal');
+    CheckEquals(0.5, FEnv.GetFloat('DOTENV_TEST_LOCAL_RATE', -1), 1e-9,
+      'Locale decimal separator still accepted');
+    Schema[0] := TDotEnvSchemaItem.Create('DOTENV_TEST_RATE', dvkFloat);
+    CheckTrue(FEnv.ValidateSchema(Schema, Errors),
+      'Schema validation accepts dot decimal');
+  finally
+    DefaultFormatSettings.DecimalSeparator := SavedSeparator;
+  end;
+end;
+
+procedure TTestDotEnv.Test125_GetArray_EmptySeparatorReturnsWholeValue;
+var
+  Items: TStringDynArray;
+begin
+  FEnv.LoadFromString('DOTENV_TEST_LIST= a,b ');
+  Items := FEnv.GetArray('DOTENV_TEST_LIST', '');
+  CheckEquals(1, Length(Items), 'Empty separator does not split');
+  CheckEquals('a,b', Items[0], 'Whole trimmed value returned');
+end;
+
+procedure TTestDotEnv.Test126_Save_PreservesUnixFileMode;
+{$IFDEF UNIX}
+const
+  TestFile = 'test_save_mode.env';
+var
+  Info: Stat;
+{$ENDIF}
+begin
+  {$IFDEF UNIX}
+  try
+    FEnv.SetToEnv('DOTENV_TEST_SECRET', 'one');
+    CheckTrue(FEnv.Save(TestFile), 'Initial save');
+    CheckEquals(0, fpChmod(TestFile, &600), 'Fixture chmod');
+    FEnv.SetToEnv('DOTENV_TEST_SECRET', 'two');
+    CheckTrue(FEnv.Save(TestFile), 'Replacing save');
+    CheckEquals(0, fpStat(TestFile, Info), 'Stat saved file');
+    CheckEquals(&600, Info.st_mode and &777,
+      'Existing file permissions are preserved');
+  finally
+    if FileExists(TestFile) then
+      DeleteFile(TestFile);
+  end;
+  {$ELSE}
+  CheckTrue(True, 'Unix-only behaviour');
+  {$ENDIF}
 end;
 
 initialization
