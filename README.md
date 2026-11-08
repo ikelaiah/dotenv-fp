@@ -11,7 +11,7 @@ A feature-rich dotenv library for **Free Pascal 3.2.2+** inspired by [python-dot
 [![Lazarus](https://img.shields.io/badge/Lazarus-4.0+-60A5FA.svg)](https://www.lazarus-ide.org/)
 ![Supports Windows](https://img.shields.io/badge/support-Windows-F59E0B?logo=Windows)
 ![Supports Linux](https://img.shields.io/badge/support-Linux-F59E0B?logo=Linux)
-[![Version](https://img.shields.io/badge/version-1.2.1-8B5CF6.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.2-8B5CF6.svg)](CHANGELOG.md)
 ![No Dependencies](https://img.shields.io/badge/dependencies-none-10B981.svg)
 [![Documentation](https://img.shields.io/badge/Docs-Available-brightgreen.svg)](docs/)
 [![Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)]()
